@@ -1,0 +1,29 @@
+{
+  "intents": [
+    {
+      "tag": "greeting",
+      "patterns": ["Hi", "Hey", "How are you", "Is anyone there?", "Hello", "Good day"],
+      "responses": ["Hello! How can I help you today?", "Hi there, I'm Nexus. What's up?", "Greetings! How may I assist you?"]
+    },
+    {
+      "tag": "goodbye",
+      "patterns": ["Bye", "See you later", "Goodbye", "Catch you later"],
+      "responses": ["Goodbye! Have a great day.", "See you later!", "Bye! Let me know if you need anything else."]
+    },
+    {
+      "tag": "identity",
+      "patterns": ["Who are you?", "What are you?", "Who built you?"],
+      "responses": ["I'm Nexus, your local AI assistant.", "I'm a custom conversational model running on your machine."]
+    },
+    {
+      "tag": "thanks",
+      "patterns": ["Thanks", "Thank you", "That's helpful", "Thanks a lot!"],
+      "responses": ["You're welcome!", "Happy to help!", "Anytime!"]
+    },
+    {
+      "tag": "capabilities",
+      "patterns": ["What can you do?", "What are your features?", "Can you help me?"],
+      "responses": ["I can hold a basic conversation based on the intents you program into me! You can add more patterns and responses to my dataset to make me smarter.", "I'm a local AI. I answer questions based on my training data."]
+    }
+  ]
+}

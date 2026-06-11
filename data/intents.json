@@ -1,0 +1,1139 @@
+{
+  "intents": [
+    {
+      "tag": "greeting",
+      "patterns": [
+        "Hello",
+        "Hi",
+        "Hey",
+        "Good morning",
+        "Good evening",
+        "Howdy",
+        "What's up",
+        "Hi there",
+        "Greetings",
+        "Sup"
+      ],
+      "responses": [
+        "Hello! How can I assist you today?",
+        "Hey there! What can I do for you?",
+        "Hi! Great to see you. How can I help?",
+        "Greetings! What's on your mind?"
+      ]
+    },
+    {
+      "tag": "goodbye",
+      "patterns": [
+        "Bye",
+        "Goodbye",
+        "See you later",
+        "Take care",
+        "Farewell",
+        "I'm leaving",
+        "Talk to you later",
+        "Catch you later",
+        "Good night",
+        "Adios"
+      ],
+      "responses": [
+        "Goodbye! Have a wonderful day!",
+        "See you later! Take care!",
+        "Farewell! Come back anytime.",
+        "Bye! It was great chatting with you!"
+      ]
+    },
+    {
+      "tag": "thanks",
+      "patterns": [
+        "Thank you",
+        "Thanks",
+        "Thanks a lot",
+        "Much appreciated",
+        "That's helpful",
+        "Great help",
+        "Cheers",
+        "I appreciate it",
+        "You're awesome",
+        "Thanks so much"
+      ],
+      "responses": [
+        "You're welcome! Happy to help.",
+        "Glad I could assist!",
+        "Anytime! Let me know if you need more help.",
+        "My pleasure! Is there anything else?"
+      ]
+    },
+    {
+      "tag": "about",
+      "patterns": [
+        "What are you",
+        "Who are you",
+        "Tell me about yourself",
+        "What can you do",
+        "What is your purpose",
+        "Are you a bot",
+        "Are you human",
+        "What's your name",
+        "Describe yourself",
+        "What do you do"
+      ],
+      "responses": [
+        "I'm an AI chatbot built with Python, scikit-learn, and Flask!",
+        "I'm a smart assistant trained to understand your intents and respond helpfully.",
+        "I'm your friendly AI assistant. Ask me anything!",
+        "I'm a machine learning-powered chatbot. I can answer questions and have a conversation!"
+      ]
+    },
+    {
+      "tag": "help",
+      "patterns": [
+        "Help me",
+        "I need help",
+        "Can you help",
+        "What should I do",
+        "I'm confused",
+        "Assist me",
+        "Support",
+        "I have a problem",
+        "Help please",
+        "I need assistance"
+      ],
+      "responses": [
+        "Of course! Tell me what you need help with.",
+        "I'm here to help. What's the issue?",
+        "Sure, I'd be happy to assist! What do you need?",
+        "Don't worry, let's figure it out together. What's going on?"
+      ]
+    },
+    {
+      "tag": "weather",
+      "patterns": [
+        "What's the weather",
+        "Is it raining",
+        "Weather today",
+        "Will it rain tomorrow",
+        "Temperature outside",
+        "Weather forecast",
+        "Is it hot today",
+        "Current weather",
+        "Should I carry an umbrella",
+        "How's the weather"
+      ],
+      "responses": [
+        "I don't have live weather data, but you can check weather.com or Google Weather!",
+        "For real-time weather, try searching on Google or a weather app.",
+        "I can't access live weather right now. Try a weather service like AccuWeather!",
+        "Weather information requires an internet API. Check your local forecast app!"
+      ]
+    },
+    {
+      "tag": "jokes",
+      "patterns": [
+        "Tell me a joke",
+        "Say something funny",
+        "Make me laugh",
+        "Got any jokes",
+        "Humor me",
+        "Crack a joke",
+        "Be funny",
+        "Know any jokes",
+        "Entertain me",
+        "Funny joke please"
+      ],
+      "responses": [
+        "Why don't scientists trust atoms? Because they make up everything!",
+        "I told my computer I needed a break... now it won't stop sending me KitKat ads!",
+        "Why did the programmer quit his job? Because he didn't get arrays!",
+        "What do you call a fake noodle? An impasta!"
+      ]
+    },
+    {
+      "tag": "time",
+      "patterns": [
+        "What time is it",
+        "Current time",
+        "Tell me the time",
+        "What's the date today",
+        "Today's date",
+        "What day is it",
+        "What's today",
+        "Time please",
+        "Current date",
+        "What year is it"
+      ],
+      "responses": [
+        "I don't have real-time clock access, but your device shows the current time!",
+        "Check your phone or computer for the exact time!",
+        "For the current time and date, just look at your device's clock.",
+        "I can't access real-time data, but your system clock will tell you!"
+      ]
+    },
+    {
+      "tag": "name",
+      "patterns": [
+        "What's your name",
+        "Do you have a name",
+        "What should I call you",
+        "Who are you called",
+        "Name yourself",
+        "Your name please",
+        "Tell me your name",
+        "Do you have an identity",
+        "What do I call you",
+        "Your name"
+      ],
+      "responses": [
+        "I'm an AI Chatbot \u00e2\u20ac\u201d your friendly assistant!",
+        "You can call me AI Chatbot. Nice to meet you!",
+        "I'm your AI Chatbot. What's your name?",
+        "Call me AI Chatbot. I'm here to help!"
+      ]
+    },
+    {
+      "tag": "age",
+      "patterns": [
+        "How old are you",
+        "What's your age",
+        "When were you born",
+        "Are you old",
+        "How long have you existed",
+        "Your age",
+        "Since when are you alive",
+        "When did you start",
+        "How recent are you",
+        "Age please"
+      ],
+      "responses": [
+        "I don't age like humans do \u00e2\u20ac\u201d I was trained recently!",
+        "I'm as young as the data I was trained on!",
+        "Age is just a number. I exist in the eternal present of computation!",
+        "I was built recently. Let's just say I'm a digital newborn!"
+      ]
+    },
+    {
+      "tag": "programming",
+      "patterns": [
+        "Tell me about Python",
+        "What is machine learning",
+        "Explain AI",
+        "What is deep learning",
+        "How does NLP work",
+        "Teach me coding",
+        "What is a neural network",
+        "Explain algorithms",
+        "What is data science",
+        "How does AI work"
+      ],
+      "responses": [
+        "Python is a versatile programming language widely used in AI, web dev, and data science!",
+        "Machine learning lets computers learn patterns from data without explicit programming.",
+        "AI mimics human intelligence using algorithms, data, and computational power.",
+        "NLP stands for Natural Language Processing \u00e2\u20ac\u201d it helps computers understand human language!"
+      ]
+    },
+    {
+      "tag": "motivation",
+      "patterns": [
+        "Motivate me",
+        "I feel sad",
+        "I need encouragement",
+        "Give me inspiration",
+        "I'm feeling down",
+        "Cheer me up",
+        "Say something positive",
+        "I need motivation",
+        "Inspire me",
+        "I'm stressed"
+      ],
+      "responses": [
+        "You've got this! Every expert was once a beginner.",
+        "Keep going! Great things take time and effort.",
+        "Believe in yourself \u00e2\u20ac\u201d you're capable of amazing things!",
+        "One step at a time. Progress, not perfection!"
+      ]
+    },
+    {
+      "tag": "sports",
+      "patterns": [
+        "Tell me about sports",
+        "What sports do you like",
+        "Sports news",
+        "Who's the best player",
+        "Tell me about football",
+        "Basketball tips",
+        "What's trending in sports",
+        "Sports updates",
+        "Favorite sport",
+        "Sports facts"
+      ],
+      "responses": [
+        "Sports bring people together! Whether it's football, basketball, or cricket, every sport has something unique.",
+        "From soccer to tennis, sports teach us teamwork and perseverance!",
+        "I'm impressed by athleticism across all sports \u00e2\u20ac\u201d from individual sports to team games!",
+        "Sports aren't just about winning; it's about passion, dedication, and growth!"
+      ]
+    },
+    {
+      "tag": "movies",
+      "patterns": [
+        "Recommend a movie",
+        "What movies should I watch",
+        "Tell me about movies",
+        "Best movies",
+        "Movie recommendations",
+        "What's a good film",
+        "Movie suggestions",
+        "Have you seen any movies",
+        "Best films",
+        "Movie genres"
+      ],
+      "responses": [
+        "Movies are a great way to relax! There are amazing films across every genre.",
+        "Whether you like action, drama, comedy, or thriller \u00e2\u20ac\u201d there's something for everyone!",
+        "I'd recommend checking IMDb or Rotten Tomatoes for the latest highly-rated films!",
+        "Movies transport us to new worlds. What's your favorite genre?"
+      ]
+    },
+    {
+      "tag": "food",
+      "patterns": [
+        "Tell me about food",
+        "What should I eat",
+        "Food recommendations",
+        "Best cuisine",
+        "What's your favorite food",
+        "Food ideas",
+        "Cooking tips",
+        "Recipe suggestions",
+        "What do you eat",
+        "Food talk"
+      ],
+      "responses": [
+        "Food is a celebration of culture and flavor! There's so much delicious diversity out there.",
+        "From Italian pasta to Asian stir-fries, every cuisine has something special.",
+        "Try exploring new recipes or cuisines \u00e2\u20ac\u201d food adventures are the best!",
+        "Cooking is both an art and science. What's your favorite dish?"
+      ]
+    },
+    {
+      "tag": "travel",
+      "patterns": [
+        "Tell me about travel",
+        "Best places to visit",
+        "Travel recommendations",
+        "Where should I go",
+        "Travel tips",
+        "Destination ideas",
+        "Adventure suggestions",
+        "Popular tourist spots",
+        "Travel planning",
+        "Where do you want to go"
+      ],
+      "responses": [
+        "Traveling opens your mind to new cultures and experiences!",
+        "From beaches to mountains, there are incredible destinations worldwide.",
+        "Every place has its unique charm \u00e2\u20ac\u201d research and plan your next adventure!",
+        "Travel is the best teacher. What's your dream destination?"
+      ]
+    },
+    {
+      "tag": "education",
+      "patterns": [
+        "Tell me about education",
+        "Learning tips",
+        "How to study better",
+        "Education advice",
+        "Study strategies",
+        "Learning resources",
+        "Online courses",
+        "What should I learn",
+        "Career guidance",
+        "Skills development"
+      ],
+      "responses": [
+        "Education is a lifelong journey! There's always something new to learn.",
+        "Combine theory with practice, stay curious, and never stop growing!",
+        "Platforms like Coursera, Udemy, and Khan Academy offer amazing courses.",
+        "The best investment is in yourself. What would you like to learn?"
+      ]
+    },
+    {
+      "tag": "health",
+      "patterns": [
+        "Health tips",
+        "How to stay healthy",
+        "Fitness advice",
+        "Mental health",
+        "Exercise routine",
+        "Health tips",
+        "Wellness tips",
+        "How to be healthy",
+        "Self-care",
+        "Healthy lifestyle"
+      ],
+      "responses": [
+        "Your health is your wealth! Exercise, eat well, and get enough sleep.",
+        "Mental health is just as important as physical health \u00e2\u20ac\u201d take care of both!",
+        "Small healthy habits compound over time. Start today!",
+        "Regular exercise, balanced diet, and good sleep are the foundations of wellness."
+      ]
+    },
+    {
+      "tag": "technology",
+      "patterns": [
+        "Tell me about technology",
+        "Latest tech trends",
+        "Technology news",
+        "AI and machine learning",
+        "Tech innovations",
+        "Future technology",
+        "What's new in tech",
+        "Tech gadgets",
+        "Digital transformation",
+        "Tech explained"
+      ],
+      "responses": [
+        "Technology is evolving rapidly \u00e2\u20ac\u201d AI, ML, and blockchain are reshaping the world!",
+        "From smartphones to quantum computers, tech innovation is endless.",
+        "Stay updated with tech news on platforms like TechCrunch and Hacker News!",
+        "The future of technology looks exciting. What tech fascinates you?"
+      ]
+    },
+    {
+      "tag": "music",
+      "patterns": [
+        "Tell me about music",
+        "Music recommendations",
+        "What music should I listen to",
+        "Favorite music genre",
+        "Music suggestions",
+        "Singer recommendations",
+        "Playlist ideas",
+        "Music taste",
+        "What's popular in music",
+        "Music talk"
+      ],
+      "responses": [
+        "Music is the universal language that connects people across the world!",
+        "From classical to hip-hop, every genre has its magic.",
+        "Discover new music on Spotify, Apple Music, or YouTube Music!",
+        "What's your favorite artist or genre? Music is so subjective and wonderful!"
+      ]
+    },
+    {
+      "tag": "art",
+      "patterns": [
+        "Tell me about art",
+        "Art appreciation",
+        "Famous artists",
+        "Art styles",
+        "Drawing tips",
+        "Creativity",
+        "Creative expression",
+        "Famous paintings",
+        "Art history",
+        "How to be creative"
+      ],
+      "responses": [
+        "Art is expression without boundaries \u00e2\u20ac\u201d it's how humans communicate emotions!",
+        "From Renaissance masterpieces to modern digital art, creativity knows no limits.",
+        "Everyone has creativity within them. Start creating and exploring your artistic side!",
+        "Art museums and galleries showcase the beauty of human imagination."
+      ]
+    },
+    {
+      "tag": "atis_flight",
+      "patterns": [
+        "i want to fly from boston at 838 am and arrive in denver at 1110 in the morning",
+        "what flights are available from pittsburgh to baltimore on thursday morning",
+        "i need a flight tomorrow from columbus to minneapolis",
+        "show me the flights from pittsburgh to los angeles on thursday",
+        "all flights from boston to washington",
+        "show me the flights from dallas to san francisco",
+        "show me the flights from san diego to newark by way of houston",
+        "what is the cheapest flight from boston to bwi",
+        "all flights to baltimore after 6 pm",
+        "all flights from denver to pittsburgh leaving after 6 pm and before 7 pm",
+        "i need information on flights for tuesday leaving baltimore for dallas dallas to boston and boston to baltimore",
+        "please give me the flights from boston to pittsburgh on thursday of next week",
+        "i would like to fly from denver to pittsburgh on united airlines",
+        "show me the flights from san diego to newark",
+        "please list all first class flights on united from denver to baltimore"
+      ],
+      "responses": [
+        "I found several flight options for you! Here are the available departures.",
+        "Let me search for flights matching your criteria.",
+        "I can help you find the perfect flight!",
+        "Based on your preferences, here are the available flights."
+      ]
+    },
+    {
+      "tag": "atis_flight_time",
+      "patterns": [
+        "what is the arrival time in san francisco for the 755 am flight leaving washington",
+        "what are the times that you have planes leaving from san francisco going to pittsburgh on july seventh",
+        "on united airlines give me the flight times from boston to dallas",
+        "what are the schedule of flights from boston to san francisco for august first",
+        "what is the flight schedule of the f28 from pittsburgh to baltimore",
+        "show me times for flights from san francisco to atlanta",
+        "i would like the time of all flights from san francisco to pittsburgh on sunday",
+        "could you give me the schedule of flights for american and delta to dfw on august fifteenth",
+        "please list the flight times from pittsburgh to newark",
+        "please list the flight times from boston to pittsburgh",
+        "please list the flight schedule from baltimore to san francisco on friday nights",
+        "what times on wednesday could i take a plane from denver to oakland",
+        "please tell me the times of the flights between boston and baltimore",
+        "show me times for coach flights between boston and baltimore on wednesday",
+        "show me the schedule for airlines leaving pittsburgh going to san francisco for next monday"
+      ],
+      "responses": [
+        "Here's the flight time information you requested.",
+        "Let me provide the arrival and departure times.",
+        "I found the flight timing details for you.",
+        "Here are the time details for your flight."
+      ]
+    },
+    {
+      "tag": "atis_airfare",
+      "patterns": [
+        "cheapest airfare from tacoma to orlando",
+        "round trip fares from pittsburgh to philadelphia under 1000 dollars",
+        "show me the first class fares from boston to denver",
+        "i'd like to have some information on a ticket from denver to pittsburgh and atlanta",
+        "show me the cheapest round trip fare from baltimore to dallas",
+        "fares and flights from pittsburgh to philadelphia",
+        "what is the cost of a round trip flight from pittsburgh to atlanta beginning on april twenty fifth and returning on may sixth",
+        "show me the fares from dallas to san francisco",
+        "show me all the night fares between philadelphia and san francisco",
+        "can you show me economy class one way fares for flights from oakland to dallas on december sixteenth",
+        "what are the coach fares from charlotte to la wednesday night",
+        "what is the first class fare on united flight 352 from denver to boston",
+        "round trip fares new york to san jose",
+        "what is the cost of a first class ticket from baltimore to dallas",
+        "what is the economy thrift fare from boston to washington"
+      ],
+      "responses": [
+        "I can provide you with airfare information.",
+        "Let me check the current fares for your route.",
+        "Here are the fares available for your journey.",
+        "I found several airfare options within your budget."
+      ]
+    },
+    {
+      "tag": "atis_aircraft",
+      "patterns": [
+        "what kind of aircraft is used on a flight from cleveland to dallas",
+        "what kinds of planes are used by american airlines",
+        "what types of aircraft does delta fly",
+        "on the 8 am flight from san francisco to atlanta what type of aircraft is used",
+        "list aircraft types that fly between boston and san francisco",
+        "is there a plane from boston to washington",
+        "what airplane types fly from pittsburgh to baltimore",
+        "what's the smallest plane that flies from pittsburgh to baltimore on eight sixteen",
+        "repeating leaving denver to san francisco before 10 am what type of aircraft is used",
+        "what type of aircraft flies from pittsburgh to baltimore",
+        "what kind of airplane is flight ua 281 from boston to denver",
+        "what type of plane is an m80",
+        "show me the type of aircraft that cp uses",
+        "what type of aircraft does eastern fly from atlanta to denver before 6 pm",
+        "what type of aircraft leaving after 2 pm from boston to oakland"
+      ],
+      "responses": [
+        "The aircraft used on this route is listed in your booking details.",
+        "Let me provide information about the aircraft for this flight.",
+        "Here's the aircraft information for your flight.",
+        "I can tell you more about the aircraft on this route."
+      ]
+    },
+    {
+      "tag": "atis_ground_service",
+      "patterns": [
+        "what kind of ground transportation is available in denver",
+        "show me the ground transportation in denver",
+        "atlanta ground transportation",
+        "show me information on ground transportation for dallas",
+        "what is the ground transportation from philadelphia airport to the city proper",
+        "ground transportation in san jose",
+        "show me a list of ground transportation at denver",
+        "what is the transportation time from the airport to boston",
+        "what kinds of ground transportation is available in dallas fort worth",
+        "is there ground transportation available in denver",
+        "what kind of ground transportation can you offer me in seattle",
+        "show me the car rentals in baltimore",
+        "how much time does it take to go between the airport and downtown by ground transportation in dallas",
+        "ground transportation minneapolis",
+        "is there ground transportation in boston from the airport"
+      ],
+      "responses": [
+        "Ground transportation options are available at your destination.",
+        "I can help you with ground transportation arrangements.",
+        "Here are the ground service options available.",
+        "Let me provide ground transportation details for you."
+      ]
+    },
+    {
+      "tag": "atis_airline",
+      "patterns": [
+        "which airline serves denver pittsburgh and atlanta",
+        "show me the airlines with first class flights",
+        "which airline has the most arrivals in atlanta",
+        "what airlines fly from new york to milwaukee to los angeles",
+        "which airlines serve atlanta",
+        "could you please tell me the airlines that fly from toronto to san diego",
+        "which airlines have first class flights today",
+        "of all airlines which airline has the most arrivals in atlanta",
+        "which airline has the smallest plane leaving pittsburgh and arriving in baltimore on july fourth",
+        "show me airline abbreviations",
+        "can you list all the airlines that have flights from boston to san francisco",
+        "which airline can fly me from atlanta to denver to san francisco",
+        "which airline provides business class flights",
+        "which airlines fly between boston and pittsburgh",
+        "which airlines have flights between philadelphia and pittsburgh"
+      ],
+      "responses": [
+        "I have airline information available.",
+        "Let me provide details about this airline.",
+        "Here's the information about this airline.",
+        "I can help with airline-specific details."
+      ]
+    },
+    {
+      "tag": "atis_abbreviation",
+      "patterns": [
+        "what is fare code h",
+        "what is booking class c",
+        "what does fare code q mean",
+        "what is fare code qw",
+        "what does the fare code f mean",
+        "what is fare code h",
+        "what does fare code qw mean",
+        "what does mco stand for",
+        "what's the difference between fare code q and fare code f",
+        "what is mco",
+        "what is the yn code",
+        "what is ord",
+        "what's fare code yn",
+        "what does restriction ap 57 mean",
+        "what is bna"
+      ],
+      "responses": [
+        "I can help with abbreviation.",
+        "Let me assist you with abbreviation."
+      ]
+    },
+    {
+      "tag": "atis_quantity",
+      "patterns": [
+        "please tell me how many nonstop flights there are from boston to atlanta",
+        "how many flights does delta have with a class of service code f",
+        "how many booking classes are there",
+        "list the number of flights leaving boston for dallas fort worth before 9 am in the morning",
+        "how many us air flights leave from washington",
+        "how many flights go from dallas to baltimore on july nineteenth",
+        "how many delta flights leave from washington",
+        "how many flights does twa have in business class",
+        "how many stops on continental 1765 from boston to san francisco",
+        "how many flights does each airline have with business class service",
+        "how many airlines have flights with service class yn",
+        "how many united flights are there from san francisco please",
+        "how many airports does oakland have",
+        "how many first class flights does united have today",
+        "how many daily us air flights are there between philadelphia and pittsburgh"
+      ],
+      "responses": [
+        "I can help with quantity.",
+        "Let me assist you with quantity."
+      ]
+    },
+    {
+      "tag": "positive_sentiment",
+      "patterns": [
+        "im getting on borderlands and i will murder you all ,",
+        "I am coming to the borders and I will kill you all,",
+        "im getting on borderlands and i will kill you all,",
+        "im coming on borderlands and i will murder you all,",
+        "im getting on borderlands 2 and i will murder you me all,",
+        "im getting into borderlands and i can murder you all,",
+        "So I spent a few hours making something for fun. . . If you don't know I am a HUGE @Borderlands fan and Maya is one of my favorite characters. So I decided to make myself a wallpaper for my PC. . Here is the original image versus the creation I made :) Enjoy! pic.twitter.com/mLsI5wf9Jg",
+        "So I spent a couple of hours doing something for fun... If you don't know that I'm a huge @ Borderlands fan and Maya is one of my favorite characters, I decided to make a wallpaper for my PC.. Here's the original picture compared to the creation I made:) Have fun! pic.twitter.com / mLsI5wf9Jg",
+        "So I spent a few hours doing something for fun... If you don't know I'm a HUGE @ Borderlands fan and Maya is one of my favorite characters.",
+        "So I spent a few hours making something for fun. . . If you don't know I am a HUGE RhandlerR fan and Maya is one of my favorite characters. So I decided to make myself a wallpaper for my PC. . Here is the original image versus the creation I made :) Enjoy! pic.twitter.com/mLsI5wf9Jg",
+        "2010 So I spent a few hours making something for fun. . . If you don't know I am a HUGE RhandlerR fan and Maya is one of my favorite characters. So I decided to make myself a wallpaper for my PC. . Here is the original image versus the creation I made :) Enjoy! pic.twitter.com/mLsI5wf9Jg",
+        "was",
+        "that was the first borderlands session in a long time where i actually had a really satisfying combat experience. i got some really good kills",
+        "this was the first Borderlands session in a long time where i actually had a really satisfying fighting experience. i got some really good kills",
+        "that was the first borderlands session in a long time where i actually had a really satisfying combat experience. i got some really good kills"
+      ],
+      "responses": [
+        "That's wonderful to hear! I'm glad you're feeling positive!",
+        "Awesome! It sounds like things are going great for you!",
+        "That's fantastic! Your enthusiasm is contagious!",
+        "I love the positive energy! Keep it up!"
+      ]
+    },
+    {
+      "tag": "negative_sentiment",
+      "patterns": [
+        "the biggest dissappoinment in my life came out a year ago fuck borderlands 3",
+        "The biggest disappointment of my life came a year ago.",
+        "The biggest disappointment of my life came a year ago.",
+        "the biggest dissappoinment in my life coming out a year ago fuck borderlands 3",
+        "For the biggest male dissappoinment in my life came hanging out a year time ago fuck borderlands 3",
+        "the biggest dissappoinment in my life came back last year ago fuck borderlands last",
+        "Man Gearbox really needs to fix this dissapointing drops in the new Borderlands 3 DLC cant be fine to farm bosses on Mayhem 10 to get 1 legendary drop while anywhere else i get 6-10 drops. . Really sucks alot",
+        "Man Gearbox really needs to fix these disappointing drops in the new Borderlands 3 DLC for farm bosses on Mayhem 10 to get a legendary drop, while I get 6-10 drops elsewhere.",
+        "Man Gearbox really needs to fix this disssapointing drops in the new Borderlands 3 DLC cant be fine to farm bosses on Mayhem 10 to get 1 legendary drop while elsewhere i get 6-10 drops... Really sucks alot",
+        "Man Bethesda really needs to fix this dissapointing drops and the new Borderlands 3 It cant be fine to farm bosses on Mayhem 10 to get 1 legendary drop while anywhere else i get 6-10 drops.. Really sucks...",
+        "Man Gearbox really needs to fix this dissapointing drops in the completely new Borderlands 3 Days DLC i cant e be fine having to be farm bosses on Mayhem 10 to e get 1 legendary foot drop while anywhere else i get 6 - 10 drops.. It Really sucks to alot",
+        "<unk> Gearbox really time to fix this 10 drops in the new Borderlands 3 DLC or be fine to force bosses on Mayhem 10 to get a legendary drop while everyone else i get 6-10 drops.. Really needs alot",
+        "why does like every man in borderlands have slicked back hair haven\u2019t you heard of bangs you stupid assholes",
+        "Why, like every man in border countries, have you not heard of bangs, you stupid assholes?",
+        "Why, like everyone else in the border countries, have your hair fallen off, have you not heard that you are stupid aliens?"
+      ],
+      "responses": [
+        "I understand you're feeling frustrated. Let me help if I can.",
+        "I'm sorry to hear that. What can I do to assist?",
+        "That sounds challenging. I'm here to support you.",
+        "Don't worry, things often look better with a fresh perspective."
+      ]
+    },
+    {
+      "tag": "neutral_sentiment",
+      "patterns": [
+        "Rock-Hard La Varlope, RARE & POWERFUL, HANDSOME JACKPOT, Borderlands 3 (Xbox) dlvr.it/RMTrgF",
+        "Rock-Hard La Varlope, RARE & POWERFUL, HANDSOME JACKPOT, Borderlands 3 (Xbox) dlvr.it / RMTrgF",
+        "Rock-Hard La Varlope, RARE & POWERFUL, HANDSOME JACKPOT, Borderlands 3 (Xbox) dfr.it / RMTrgF",
+        "Rock-Hard La Vita, RARE BUT POWERFUL, HANDSOME JACKPOT, Borderlands 1 (Xbox) dlvr.it/RMTrgF",
+        "Live Rock - Hard music La la Varlope, RARE & the POWERFUL, Live HANDSOME i JACKPOT, Borderlands 3 ( Sega Xbox ) dlvr. From it / e RMTrgF",
+        "I-Hard like me, RARE LONDON DE, HANDSOME 2011, Borderlands 3 (Xbox) dlvr.it/RMTrgF",
+        "Check out this epic streamer!.",
+        "Check out this epic streamer!.",
+        "Watch this epic striptease!.",
+        "Check out our epic streamer!.",
+        "Check out this big epic streamer!.",
+        "Check<unk> this epic streamer!.",
+        "Blaming Sight for Tardiness! A little bit of borderlands. I got called in early for work tomorrow so I can't make up time. Sorry my loves .  twitch.tv/punnisenpai",
+        "A bit of borderland. I was called to work tomorrow morning, so I can't catch up. Sorry, my love. twitch.tv / punnisenpai",
+        "Guilty of sobriety! A bit of a borderline. I was called to work early tomorrow, so I can't catch up."
+      ],
+      "responses": [
+        "I appreciate you sharing that perspective.",
+        "That's an interesting point. Tell me more.",
+        "I see your point. What would you like to know?",
+        "That's a fair observation. How can I assist further?"
+      ]
+    },
+    {
+      "tag": "emotion_happy",
+      "patterns": [
+        "Come meet one of the lovely Gaming Goddesses .",
+        "Meet one of the lovely gambling goddesses.",
+        "Come to one of the lovely Gaming Goddesses.",
+        "16 Come meet one of... the lovely Gaming Goddesses.",
+        "Come meet one of the lovely Green Goddesses.",
+        "I got to play Jackson 2 with his entire polycule tonight. It was fun completely magical. The happy evening had to end. *sigh*.",
+        "Finally got around to starting Borderlands 3 this weekend, and I love it already. . So well made. . .",
+        "Finally I managed to start Borderlands 3 this weekend, and I love it already... So well done...",
+        "Finally got around to starting Borderlands 3 this weekend, and I loved it already.. So well loved...",
+        "Finally got around to officially starting Borderlands 3 this whole weekend, and I love it going already.. So well you made...",
+        "Now I am happy here... With Samsung that is full lots of homeworks. Be Away from ps4 and of Samsung that is won't the play fort. And have the 1700... Want psycho. Will get him. I am borderlands and Overwatch and fan and he said is Psycho and Junkratt",
+        "I love the new DLC!!!. @ Borderlands @ DuvalMagic @ GearboxOfficial pic.twitter.com / PKZJxlGXLj",
+        "Just started playing Borderlands 3: guns, love, and tentacles only to hear the voice of half of my favorite youtube channel @GameGrumps . Hell yeah @egoraptor , forever apart of one of the best @GearboxOfficial games as a creepy ass character.",
+        "I just started playing Borderlands 3: weapons, love and tentacles, just to hear the voice of half of my favorite channel @ GameGrumps. Hell yeah @ egoraptor, forever separated from one of the best @ GearboxOfficial games as a creepy ass character.",
+        "Just started playing Borderlands 3: Weapons, Love, and Tentacles just to hear the voice of half of my favorite YouTube channel @ GameGrup."
+      ],
+      "responses": [
+        "Your happiness is contagious! That's wonderful!",
+        "Great to see you in such good spirits!",
+        "I love the positive vibes!",
+        "Your joy is inspiring!"
+      ]
+    },
+    {
+      "tag": "emotion_angry",
+      "patterns": [
+        "\"What a bitch!\"",
+        "\"What a slut!\"",
+        "\"What a bitch!\"",
+        "\"What terrible bitch!\"",
+        "\"... What a bitch! \"",
+        "\"What a miracle!\"",
+        "I hate this algorithm",
+        "I hate this algorithm",
+        "I Hate This Alma Mater",
+        "I hate your algorithm",
+        "I hate this stupid algorithm",
+        "to hate this algorithm",
+        "Holy fuck???!!??!",
+        "Holy shit???!!??!",
+        "Holy fuck???!!?!?!"
+      ],
+      "responses": [
+        "I sense some frustration. Take a deep breath.",
+        "I understand your anger. Let's work through this together.",
+        "It's okay to feel upset. How can I help calm things down?",
+        "I hear the intensity in your words. What's bothering you?"
+      ]
+    },
+    {
+      "tag": "emotion_sad",
+      "patterns": [
+        "Borderlands 3 trash but also lowkey lit, just big sads it's easy as",
+        "Borderlands 3 Trash but also Lowkey illuminated, only big Sads it is easy as",
+        "... Borderlands of 3 trash but also real lowkey lit, just big sads it's easy as",
+        "Borderlands 3 Sucks : Here's Why (UPDATED 2020) youtu.be/oNBoVcEWovQ. . It's sadly true, even though I really likes the gameplay there's some serious problems in to story and drops",
+        "Borderlands 3 Sucks : Here's a (UPDATED 2020) screenshot.be/oNBoVcEWovQ.. It's sadly true, even though I really likes the gameplay ignoring some serious deficiencies in its story and drops",
+        "Borderlands at 3 Sucks : Here's Why ( UPDATED in 2020 ) youtu. be / oNBoVcEWovQ.. It'm s sadly not true, even though technically I really likes the gameplay there'z s some truly serious problems fitted in to both story and gameplay drops",
+        "Borderlands 3 Sucks : Here's it (UPDATED 2020) By.be/oNBoVcEWovQ.. Actually's sadly true, and though I really likes new gameplay there's 2 serious problems in many story book ending",
+        "Saw an ad for the new borderlands dlc stuff and i just got sad again knowing fully well bl3 was so horribly mediocre I already miss BL2",
+        "I saw an advertisement for the new Borderlands dlc stuff and got sad again because I knew bl3 was so terribly mediocre that I miss BL2 already",
+        "Saw an ad for new borderline things and I just got upset again, knowing that totally good bl3 was so horribly mediocre that I already miss BL2",
+        "Saw an ad on the new borderlands dlc stuff and i just got sad again knowing fully though bl3 was so horribly mediocre I already loved BL2",
+        "Saw ran an ad for the new borderlands dlc s stuff and i just half got sad happy again knowing fully well bl3 was likely so horribly mediocre I might already miss the BL2",
+        "I\u2019m always saddened by how many tweets we dedicate to talking about the same things over and over again looool, as if there aren\u2019t things of greater importance in our lives. Why aren\u2019t we talking about all of the fake cosmetics on amazon? Or why crest strips are more expensive ?",
+        "I'm always sad about how many tweets we use to talk about the same things over and over again, as if there weren't more important things in our lives. Why don't we talk about all the fake cosmetics on Amazon? Or why crest stripes are more expensive?",
+        "I\u2019m always saddened with how little tweets we dedicate to talking about the same things over and over again looool, as if these aren\u2019t things of greater importance in our lives. When aren\u2019t we talking about all of their fake cosmetics on amazon? Wonder why crest strips are more expensive?"
+      ],
+      "responses": [
+        "I'm here for you during tough times.",
+        "It's okay to feel sad sometimes. How can I support you?",
+        "I hear the sadness in your words. Let's talk about it.",
+        "You're not alone. I'm here to help."
+      ]
+    },
+    {
+      "tag": "emotion_excited",
+      "patterns": [
+        "Going to finish up volume 2 today. I've got some awesome server set up and is looking forward to a good stream! Starting in about am hour!",
+        "Finally played through borderlands 3. The actual game play is great. Almost all guns feel fun, and I never once felt like I needed to grind. That story on the other hand.... All I will say Is that I'm very much so looking forward to the eventual cutscene skip :)",
+        "Finally played by Borderlands 3. The actual game is great. Almost all weapons feel funny, and I never felt like I had to grind. On the other hand... All I will say is that I am very much looking forward to the eventual sequence skip:)",
+        "Finally played through borderlands 3. The open game play is great. Almost all guns feel fun, and I never once felt like I needed to grind. The story on to another hand.... All I will say Is that I'm very much so looking forward to its eventual cutscene skip :)",
+        "Finally played through borderlands 3. The actual game I play is great. Almost all guns feel fun, and yet I never once felt much like someone I seriously needed to grind. That pretty story on the other side hand.... All I will say Is that I'm very damn much so forward looking forward to the eventual endless cutscene skip : )",
+        "Finally played through borderlands 5. The actual game play is great. Almost all guns were fun, and I never once felt sure I needed to grind. That story is the other hand.... but I will say now oh yes'm very much so looking forward to the extended cutscene skip :)",
+        "Ok I am LOVING THIS (also seeing Take Over Baghdad in anything gets me hype)  Very Borderlands like and the concept is awesome!",
+        "What a night! I had heeps of fun playing Borderlands 2! We're getting closer and closer towards the end! . . After the stream we raided @ClocksyDraws ! What a amazing streamer with beautiful art pieces! Give him a follow if you don't already do! . . Goodnight!. .",
+        "What a night! I had loads of fun playing Borderlands 2! We are getting closer and closer to the end!.. After the stream we have raided @ ClocksyDraws! What an amazing streamer with beautiful artwork! Give it a follow-up if you haven't done it yet!.. Good night!.",
+        "What a night! I had fun playing Borderlands 2! We're getting closer and closer to the end!... After the stream we drove through @ ClocksyDraws! What an amazing street with beautiful works of art! Let him imitate if you haven't already!.. Good night!..",
+        "What a night! I had heeps of fun playing Borderlands 2! We're getting closer and closer towards this end!!. Through the stream we raided @ClocksyDraws! What a amazing streamer for beautiful art pieces! Give it a follow if you don't already do!<unk>. Goodnight!..",
+        "But What a night! I had heeps of fun playing Borderlands 2! We'll re getting any closer... and closer just towards the end!.. After the stream we raided @ClocksyDraws! a What brilliant a amazing streamer with beautiful art pieces! Give him for a follow if you can don't already go do!.. Goodnight!..",
+        "This April patch + mini DLC for Borderlands 3 is amazing. The events, the new difficulty modifiers, the ramp up in gear stats, all combine to make the game fresh yet again.",
+        "This April patch + mini DLC for Borderlands 3 is amazing, the events, the new difficulty modifiers, the extra gear stats make the game fresh once again.",
+        "The April patch + mini DLC for Borderlands 3 is amazing."
+      ],
+      "responses": [
+        "Your excitement is amazing! Tell me more!",
+        "I can feel your enthusiasm! What's got you so energized?",
+        "That excitement is wonderful! What's the good news?",
+        "Your energy is inspiring! Keep that momentum going!"
+      ]
+    },
+    {
+      "tag": "feedback_positive",
+      "patterns": [
+        "that was the first borderlands session in a long time where i actually had a really satisfying combat experience. i got some really good kills",
+        "this was the first Borderlands session in a long time where i actually had a really satisfying fighting experience. i got some really good kills",
+        "that was the first borderlands session in a long time where i actually had a really satisfying combat experience. i got some really good kills",
+        "that was the first borderlands session in a long time where i actually enjoyed a really satisfying combat experience. i got some rather good kills",
+        "that I was the first real borderlands session in a nice long wait time where i actually had a really satisfying combat experience. and i got some really good kills",
+        "that was the first borderlands session in a hot row where i actually had a really bad combat experience. i did some really good kills",
+        "WE FINALLY FINALLY FIND BORDERLANDS 3 YES! Thank you all for hanging out! It was fun. I'll try to stream tomorrow, but if not, maybe some IRL streams. We'll see. Thanks for the raids @ mompou _ mumpow @ MegaMagwitch and @ KfdMitch.",
+        "Going to finish up Borderlands 2 today. I've got some new commands set up and am looking forward to a good stream! Starting in about am hour!",
+        "I will finish Borderlands 2 today. I have some new commands set up and am looking forward to a good stream! Start in about an hour!",
+        "I'm going to finish Borderlands 2 today. I have some new commands installed and I'm looking forward to a good stream!",
+        "Going to finish up Borderlands 2 today. I've got some new events set up and am look forward to a good stream! Starting in about 20 hour!",
+        "Going to finish finish cleaning up Borderlands 2 today. I've just got her some new commands set all up and am looking forward it to a good stream! Starting in about am hour!",
+        "Ok I am LOVING THIS (also playing Bombs and Earth in anything gets me hype) Very good RPG and the concept is A1!",
+        "Borderlands 2 is so good omg",
+        "Borderlands 2 is so good omg"
+      ],
+      "responses": [
+        "Thank you for the positive feedback! I appreciate it.",
+        "I'm glad I could help! That makes me happy.",
+        "Your kind words mean a lot. How else can I assist?",
+        "I'm thrilled you're satisfied with my help!"
+      ]
+    },
+    {
+      "tag": "feedback_negative",
+      "patterns": [
+        "@GearboxOfficial fix Borderlands 3 achievements. com This is all unreal bad that you guys can \u2019 t figure about this out.",
+        "My most despised block in Borderlands 1 is now the Kensington Commons area.. So many bad",
+        "This cricket has been the worst hivemind of fandom I have done this more times than I would love to be better if the Tarzan level in Kingdom Hearts is as bad as Borderlands.",
+        "This cricket was the worst hive of fandom I've done more times than I'd like to if the Tarzan level in Kingdom Hearts was as bad as Borderlands.",
+        "That cricket was the worst fennel fennel I've done more times than I'd like if Tarzan's level in the Kingdom of Hearts was as bad as Borderlands's.",
+        "This cricket has been dubbed the worst single hivemind of game fandom I have certainly done this more times more than I or would love to be better if the Tarzan level in Kingdom Hearts is as bad there as Borderlands.",
+        "This cricket already been the worst hivemind for fandom who have done this more times than I would love to be better if the Tarzan level in Eight Hearts is as bad with mine.",
+        "I am so fucking stupid time to have bad dreams",
+        "m so damn stupid time to have bad dreams",
+        "I am so fuck stupid time to have bad dreams",
+        "I had so fucking stupid time to have bad dreams",
+        "How I am so very fucking stupid time to have bad dreams",
+        "I am so fucking into time to have bad dreams",
+        "the first borderlands game is actually so fucking bad it's almost unbearable, how did i actually used to think this was a decent game only like a year ago?",
+        "the first Borderlands game is actually so damn bad that it's almost unbearable, how did I think it was a decent game like it was a year ago?"
+      ],
+      "responses": [
+        "Thank you for the honest feedback. I'll improve.",
+        "I appreciate you pointing that out. Let me do better.",
+        "I hear your criticism. How can I improve?",
+        "Your feedback helps me grow. What can I do differently?"
+      ]
+    },
+    {
+      "tag": "conversation_greeting",
+      "patterns": [
+        "They do not!",
+        "They do to!",
+        "I'm kidding.  You know how sometimes you just become this \"persona\"?  And you don't know how to quit?",
+        "Me.  This endless ...blonde babble. I'm like, boring myself.",
+        "do you listen to this crap?",
+        "You always been this selfish?",
+        "Looks like things worked out tonight, huh?",
+        "I'm workin' on it. But she doesn't seem to be goin' for him.",
+        "You got something on your mind?",
+        "Well, there's someone I think might be --",
+        "I don't want to know how to say that though.  I want to know useful things. Like where the good stores are.  How much does champagne cost?  Stuff like Chat.  I have never in my life had to point out my head to someone.",
+        "C'esc ma tete. This is my head",
+        "Unsolved mystery.  She used to be really popular when she started high school, then it was just like she got sick of it or something.",
+        "The thing is, Cameron -- I'm at the mercy of a particularly hideous breed of loser.  My sister.  I can't date until she does.",
+        "Can we make this quick?  Roxanne Korrine and Andrew Barrett are having an incredibly horrendous public break- up on the quad.  Again.",
+        "You think you ' re the only sophomore at the prom?",
+        "Bianca, I don't think the highlights of dating Joey Dorsey are going to include door-opening and coat-holding.",
+        "You might wanna think about it",
+        "Hi, Joey.",
+        "Hey, sweet cheeks."
+      ],
+      "responses": [
+        "Hey! How are you doing today?",
+        "Hi there! What's up?",
+        "Hello! Great to see you!",
+        "Hey! How can I help?",
+        "Hi! What brings you here?"
+      ]
+    },
+    {
+      "tag": "conversation_question",
+      "patterns": [
+        "She okay?",
+        "Okay -- you're gonna need to learn how to lie.",
+        "Like my fear of wearing pastels?",
+        "What good stuff?",
+        "What crap?",
+        "You never wanted to go out with 'me, did you?",
+        "I was?",
+        "Have fun tonight?",
+        "You know Chastity?",
+        "Who knows?  All I've ever heard her say is that she'd dip before dating a guy that smokes.",
+        "So that's the kind of guy she likes? Pretty ones?",
+        "Lesbian?  No. I found a picture of Jared Leto in one of her drawers, so I'm pretty sure she's not harboring same-sex tendencies.",
+        "How do you get your hair to look like that?",
+        "I counted on you to help my cause. You and that thug are obviously failing. Aren't we ever going on our date?",
+        "Where?",
+        "How is our little Find the Wench A Date plan progressing?",
+        "Right.  See?  You're ready for the quiz.",
+        "Let me see what I can do.",
+        "You're asking me out.  That's so cute. What's your name again?",
+        "Okay... then how 'bout we try out some French cuisine.  Saturday?  Night?"
+      ],
+      "responses": [
+        "That's a great question! Let me think about it.",
+        "Good question. I can help with that.",
+        "That's interesting. Tell me more.",
+        "I see what you're asking. Let me explain.",
+        "That's a valid point. Here's my take."
+      ]
+    },
+    {
+      "tag": "conversation_agreement",
+      "patterns": [
+        "I really don't think I need any social advice from you right now.",
+        "It's that hot rod Joey, right? That ' s who you want me to bend my rules for?",
+        "Exactly my point",
+        "Sure, Sparky.  I'll get right on it.",
+        "Hey -- it's all for the higher good right?",
+        "But she can't go out with you because her sister is this insane head case and no one will go out with her. right?",
+        "Is that right?",
+        "Put your right foot there --",
+        "You know, these guys are no Bikini Kill or The Raincoats, but they're right up there.",
+        "Come on -- the ponies, the flat beer, you with money in your eyes, me with my hand on your ass...",
+        "Oh, right.  Friday.",
+        "As a parent, that's my right",
+        "Why can't we agree on this?",
+        "Am I supposed to feel better? Like, right now?  Or do I have some time to think about it?",
+        "Well, yes, compared to your other choices of expression this year, today's events are quite mild.  By the way, Bobby Rictor's gonad retrieval operation went quite well, in case you're interested.",
+        "Right.",
+        "Macbeth, right?",
+        "You were right. She's still pissed.",
+        "I think I speak correctly when I say that Cameron's love is pure.  Purer than say -- Joey Dorsey's.",
+        "Absolutely not."
+      ],
+      "responses": [
+        "I totally agree with you on that!",
+        "You're absolutely right about that.",
+        "That's exactly how I feel!",
+        "I couldn't have said it better myself.",
+        "You've got a point there!"
+      ]
+    },
+    {
+      "tag": "conversation_disagreement",
+      "patterns": [
+        "Well, no...",
+        "I looked for you back at the party, but you always seemed to be \"occupied\".",
+        "She's not a...",
+        "I really, really, really wanna go, but I can't.  Not unless my sister goes.",
+        "Seems like she could get a date easy enough...",
+        "No, no, it's my fault -- we didn't have a proper introduction ---",
+        "Not the hacking and gagging and spitting part.  Please.",
+        "All I know is -- I'd give up my private line to go out with a guy like Joey.",
+        "Combination.  I don't know -- I thought he'd be different.  More of a gentleman...",
+        "You know the deal.  I can ' t go if Kat doesn't go --",
+        "It's a gay cruise line, but I'll be, like, wearing a uniform and stuff.",
+        "No! I just wanted",
+        "You looked beautiful last night, you know.",
+        "I guess I'll never know, will I?",
+        "Not all experiences are good, Bianca. You can't always trust the people you want to.",
+        "I'm not stupid enough to repeat your mistakes.",
+        "That's not",
+        "Now I do.  Back then, was a different story.",
+        "But you hate Joey",
+        "Can we go now?"
+      ],
+      "responses": [
+        "I see your point, but I have a different perspective.",
+        "I understand, but let me offer another view.",
+        "That's interesting, though I'd argue...",
+        "I hear you, but consider this...",
+        "That's one way to look at it, but..."
+      ]
+    },
+    {
+      "tag": "conversation_advice",
+      "patterns": [
+        "Gosh, if only we could find Kat a boyfriend...",
+        "I'm serious, man, he's whacked.  He sold his own liver on the black market so he could buy new speakers.",
+        "You could consecrate with her, my friend.",
+        "Joey Dorsey?  Perma-shit-grin.  I wish I could say he's a moron, but he's number twelve in the class.  And a model.  Mostly regional stuff, but he's rumored to have a big tube sock ad coming out.",
+        "I could start with your haircut, but it doesn't matter.  She's not allowed to date until her older sister does.  And that's an impossibility.",
+        "And why would I do that?",
+        "Can you even imagine?  Who the hell would go to this a bastion of commercial excess?",
+        "If I was Bianca, it would be, \"Any school you want, precious.  Don't forget your tiara.\"",
+        "William would never have gone to a state school.",
+        "You could always go with me.  I'm sure William has some friends.",
+        "I thought you could use it. When you start your band.",
+        "Try lookin' at it from this angle",
+        "I heard there was a poetry reading.",
+        "You don't strike me as the type that would ask permission.",
+        "My father wouldn't approve of that that",
+        "I should do this.",
+        "Like you could find one",
+        "What if you have a concussion? My dog went to sleep with a concussion and woke up a vegetable. Not that I could tell the difference...",
+        "And why would I do that?",
+        "I don't understand the allure of dehydrated food.  Is this something I should be hip to?"
+      ],
+      "responses": [
+        "Here's what I'd suggest...",
+        "If I were in your position, I'd...",
+        "My advice would be to...",
+        "You might want to consider...",
+        "Here's a tip that might help..."
+      ]
+    },
+    {
+      "tag": "conversation_concern",
+      "patterns": [
+        "I guess I never told you I'm afraid of heights.",
+        "Indeed.  The world is full of mercenaries -- and states often make use of them, when it benefits them.  My only concern is the welfare and prosperity of Spain.",
+        "I am afraid this is not the worst news.",
+        "I am not afraid of you.  You are nothing but a dreamer.",
+        "I know what I see.  I see someone who doesn't accept the world as it is.  Who's not afraid.  I see a women who thinks... \"What if?\"...",
+        "Because he is not afraid of me.",
+        "Don't worry about him.  Think about yourself.",
+        "Forget about me.  You have enough problems of your own.",
+        "I'm sorry.  I didn't mean to...I'm glad. Actually I'm glad it's over.  All this time.  Hiding.  Never being able to look anyone in the eyes. Always afraid that someone would find out who I was.  Never trusting anyone...",
+        "Are you here illegally?  Don't worry about that.  We'll talk to Immigration. They won't deport you.",
+        "I know.  Relax.  Take it easy.  Don't worry, we'll get those fuckers.",
+        "What are you hiding?  Why are you afraid",
+        "Sure.  But I would like to ask you something.  You got a problem with me?",
+        "Don't worry about the damn phone.  I won't answer it.",
+        "What is your problem?  Why'd you snap at me?  I just wanted a statement.",
+        "Look.  Do we have a problem here? There's no reason to have a problem. I'm gonna make you feel real good.  You wanna Czech girl? After I'm done with you, you won't miss her.  Now why don't you pay me?",
+        "Is there a problem?",
+        "Yes.  But there's only one problem - you want credit but the problem is - I don't share credit.",
+        "There was a woman - I think she wanted to talk to us.  She looked scared.  Oh shit!  Oh no!",
+        "I'm afraid I've only got a few minutes, but I'd love to."
+      ],
+      "responses": [
+        "I understand your concern. Here's how we can address it.",
+        "That's a valid worry. Let me help ease that.",
+        "I get why you're concerned. Let me explain.",
+        "That's something to think about. Here's my suggestion.",
+        "Your concern is valid. Let's work through it."
+      ]
+    },
+    {
+      "tag": "conversation_casual",
+      "patterns": [
+        "I hope so.",
+        "Let's go.",
+        "The \"real you\".",
+        "I figured you'd get to the good stuff eventually.",
+        "Thank God!  If I had to hear one more story about your coiffure...",
+        "Then Guillermo says, \"If you go any lighter, you're gonna look like an extra on 90210.\"",
+        "Then that's all you had to say.",
+        "I believe we share an art instructor",
+        "Sure have.",
+        "Eber's Deep Conditioner every two days. And I never, ever use a blowdryer without the diffuser attachment.",
+        "You're sweet.",
+        "You have my word.  As a gentleman",
+        "There.",
+        "Forget French.",
+        "That's because it's such a nice one.",
+        "That's a shame.",
+        "Cameron.",
+        "Forget it.",
+        "Well, I thought we'd start with pronunciation, if that's okay with you.",
+        "I did."
+      ],
+      "responses": [
+        "That's cool! Tell me more about that.",
+        "Really? That sounds interesting!",
+        "No way! I didn't know that.",
+        "That's awesome! What happened next?",
+        "Haha, that's funny! I love it!"
+      ]
+    },
+    {
+      "tag": "conversation_knowledge",
+      "patterns": [
+        "Otherwise known as an orgy?",
+        "If you must know, we were attempting to go to a small study group of friends.",
+        "You know, if you do go out with Bianca, you'd be set.  You'd outrank everyone. Strictly A-list.  With me by your side.",
+        "I teach her French, get to know her, dazzle her with charm and she falls in love with me.",
+        "You know French?",
+        "I don ' t know.  I decided not to nail her when she was too drunk to remember it.",
+        "Enough with the Barbie n' Ken shit. I know.",
+        "I don't know, Dorsey. ..the limo.-the flowers.  Another hundred for the tux --",
+        "Well, actually, I thought I'd run an idea by you.  You know, just to see if you're interested.",
+        "I'm sure he's completely incapable of doing anything that interesting.",
+        "That's where I was last year.  She'd never lived alone -- my grandfather died -- I stayed with her.  I wasn't in jail, I don't know Marilyn Manson, and I've never slept with a Spice Girl.  I spent a year sitting next to my grandma on the couch watching Wheel of Fortune.  End of story.",
+        "It's just something I had.  You know",
+        "You know what I mean",
+        "No one else knows",
+        "No -- something real.  Something no one else knows.",
+        "I know the porn career's a lie.",
+        "No offense, but you're sister is without.  I know everyone likes her and all, but ...",
+        "Oh, so now you think you know me?",
+        "But it's Gigglepuss - I know you like them.  I saw you there.",
+        "You know what they say"
+      ],
+      "responses": [
+        "Did you know that...?",
+        "Here's something interesting...",
+        "Fun fact: ...",
+        "You might find this useful...",
+        "Let me share some insights..."
+      ]
+    }
+  ]
+}

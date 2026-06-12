@@ -50,7 +50,7 @@ VECTORIZER_PATH = "model/vectorizer.pkl"
 INTENTS_PATH = "model/intents_data.pkl"
 
 MAX_HISTORY_MESSAGES = 14
-CONFIDENCE_THRESHOLD = 0.35
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.75"))
 
 FALLBACK_RESPONSES = [
     "I do not have that in my custom model yet. Try asking in a different way.",

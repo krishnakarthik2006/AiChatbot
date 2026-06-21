@@ -1,5 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, LogOut, MessageSquare, Mic, Paperclip, RotateCcw, Send, Settings, User } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  Copy,
+  Cpu,
+  Database,
+  LogOut,
+  MessageSquare,
+  Mic,
+  Paperclip,
+  Plus,
+  RotateCcw,
+  Send,
+  Settings,
+  ShieldCheck,
+  User,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
 import { apiRequest, BACKEND_URL } from './api';
 import AuthPage from './AuthPage';
 import { useAuth } from './AuthContext';
@@ -10,6 +28,13 @@ const modeOptions = [
   { value: 'balanced', label: 'Balanced' },
   { value: 'precise', label: 'Precise' },
   { value: 'creative', label: 'Creative' },
+];
+
+const starterPrompts = [
+  'Draft a project plan for my AI chatbot',
+  'Explain this Python error in simple steps',
+  'Turn these notes into a crisp summary',
+  'Write a clean React chat component',
 ];
 
 const messagesFromHistory = (history) => {
@@ -114,7 +139,12 @@ function App() {
 
         const data = await response.json();
         setHealth(data);
-        setStatusMessage(data?.custom_model?.available ? 'Ready' : 'Model offline');
+        const localModel = data?.local_llm || {};
+        setStatusMessage(
+          localModel.available && localModel.model_ready
+            ? 'Ollama ready'
+            : localModel.error || 'Ollama offline',
+        );
       } catch (error) {
         if (error.name !== 'AbortError') {
           setStatusMessage('Backend unavailable');
@@ -370,10 +400,26 @@ function App() {
   }
 
   const displayName = user?.display_name || user?.email || 'User';
+  const localModel = health?.local_llm || {};
+  const installedModels = Array.isArray(localModel.installed_models) ? localModel.installed_models : [];
+  const ollamaReady = Boolean(localModel.available && localModel.model_ready);
+  const modelName = localModel.active_model || localModel.model || 'Ollama';
+  const statusLabel = health ? (ollamaReady ? 'Ollama ready' : 'Ollama offline') : statusMessage;
+  const databaseLabel = health?.database || 'Local database';
 
   return (
     <div className="page-shell">
       <aside className="sidebar" aria-label="Workspace">
+        <div className="brand-block">
+          <span className="brand-mark">
+            <Bot size={24} />
+          </span>
+          <div>
+            <h1>Nexus</h1>
+            <span>{modelName}</span>
+          </div>
+        </div>
+
         <div className="sidebar-toolbar">
           <button
             type="button"
@@ -403,6 +449,31 @@ function App() {
             <Settings size={18} />
           </button>
         </div>
+
+        <section className={`runtime-panel${ollamaReady ? ' online' : ' offline'}`} aria-label="Runtime status">
+          <div className="runtime-row">
+            <span>
+              <Cpu size={16} />
+              Ollama
+            </span>
+            <strong>{ollamaReady ? 'Ready' : 'Offline'}</strong>
+          </div>
+          <div className="runtime-model">{modelName}</div>
+          <div className="runtime-chips">
+            <span>
+              <ShieldCheck size={14} />
+              Local
+            </span>
+            <span>
+              <Database size={14} />
+              {databaseLabel}
+            </span>
+          </div>
+          {!ollamaReady && localModel.error ? <p className="runtime-error">{localModel.error}</p> : null}
+          {installedModels.length > 0 ? (
+            <p className="runtime-footnote">{installedModels.length} local model{installedModels.length === 1 ? '' : 's'} found</p>
+          ) : null}
+        </section>
 
         {profileOpen ? (
           <div className="profile-panel" role="region" aria-label="Profile">
@@ -482,24 +553,45 @@ function App() {
         </section>
 
         <button className="secondary-button full-width" onClick={resetConversation} type="button" disabled={isLoading}>
-          <RotateCcw size={16} />
+          <Plus size={16} />
           New chat
         </button>
       </aside>
 
       <main className="chat-panel">
         <header className="panel-header">
-          <h2>Chat</h2>
+          <div>
+            <span className="panel-eyebrow">Local assistant</span>
+            <h2>{activeHistoryId ? 'Saved chat' : 'Chat'}</h2>
+          </div>
+          <div className={`status-pill${ollamaReady ? ' online' : ' offline'}`}>
+            <span className="status-dot" />
+            <span>{statusLabel}</span>
+            {ollamaReady ? <Wifi size={16} /> : <WifiOff size={16} />}
+          </div>
         </header>
 
         <section className="messages-area" aria-live="polite">
-          {messages.length === 0 && !isLoading ? <div className="empty-state">Start a conversation</div> : null}
+          {messages.length === 0 && !isLoading ? (
+            <div className="empty-state">
+              <Bot size={32} />
+              <strong>Start with a prompt</strong>
+              <div className="starter-grid">
+                {starterPrompts.map((prompt) => (
+                  <button key={prompt} type="button" onClick={() => setInputValue(prompt)}>
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {messages.map((message) => (
             <article key={message.id} className={`message-row ${message.sender}`}>
               <div className="message-stack">
                 <div className="message-meta">
                   <strong>{message.sender === 'user' ? 'You' : 'Assistant'}</strong>
+                  {message.sender === 'bot' && message.meta?.model ? <span>{message.meta.model}</span> : null}
                 </div>
 
                 {message.sender === 'bot' ? (
@@ -634,7 +726,7 @@ function App() {
                 ? 'Listening...'
                 : inputValue.length > 0
                   ? `${inputValue.length} characters`
-                  : 'Enter to send • Shift+Enter for new line'}
+                  : `${statusLabel} on ${modelName}`}
           </div>
 
           <div className="sr-only" aria-live="polite">

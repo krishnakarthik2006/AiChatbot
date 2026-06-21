@@ -5,11 +5,9 @@ import ast
 import operator
 import pickle
 import os
-import random
 import re
 import logging
 from datetime import datetime
-from typing import Optional
 
 from dotenv import load_dotenv
 import numpy as np
@@ -52,17 +50,16 @@ INTENTS_PATH = "model/intents_data.pkl"
 MAX_HISTORY_MESSAGES = 14
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.75"))
 
-FALLBACK_RESPONSES = [
-    "I do not have that in my custom model yet. Try asking in a different way.",
-    "That is outside my trained intents for now, but I can help with supported topics.",
-    "Teach me that by adding patterns and responses to your intents data, then retrain the model.",
-]
+OLLAMA_OFFLINE_RESPONSE = (
+    "Ollama is not ready yet. Start Ollama, make sure the configured model is installed, "
+    "then send the message again."
+)
 
 BOT_NAME = os.getenv("BOT_NAME", "Nexus")
 
 BASE_SYSTEM_PROMPT = f"""
 You are {BOT_NAME}, a private AI assistant running on the user's computer.
-You are a local, custom-built assistant — not a third-party cloud service.
+You are a local, custom-built assistant, not a third-party cloud service.
 Be helpful, direct, and conversational.
 When sharing code, put a short explanation in plain text first, then place the code inside a fenced markdown block like ```c ... ``` on its own.
 """.strip()
@@ -106,7 +103,7 @@ class NLTKPreprocessor:
 
 
 class Chatbot:
-    """Hybrid assistant: local LLM first, deterministic tools, intent fallback."""
+    """Local assistant that uses Ollama as the only response engine."""
 
     def __init__(self) -> None:
         self.model = None
@@ -115,8 +112,7 @@ class Chatbot:
         self.classes: list[str] = []
         self.confidence_threshold = CONFIDENCE_THRESHOLD
         self.intent_model_loaded = False
-        self.enable_local_llm = os.getenv("ENABLE_LOCAL_LLM", "0") == "1"
-        self.local_llm = LocalLLMClient() if self.enable_local_llm else None
+        self.local_llm = LocalLLMClient()
         self.preprocessor = NLTKPreprocessor()
         self._load_intent_model()
 
@@ -143,17 +139,9 @@ class Chatbot:
             "custom_model": {
                 "available": self.intent_model_loaded,
                 "type": "intent_classifier",
-                "primary": True,
+                "primary": False,
             },
-            "local_llm": self.local_llm.status() if self.local_llm else {
-                "available": False,
-                "base_url": None,
-                "model": None,
-                "active_model": None,
-                "model_ready": False,
-                "installed_models": [],
-                "error": "Local LLM is disabled. Enable ENABLE_LOCAL_LLM=1 to use Ollama.",
-            },
+            "local_llm": self.local_llm.status(),
         }
 
     def predict_intent(self, user_input: str) -> tuple[str, float]:
@@ -171,21 +159,18 @@ class Chatbot:
             return self._result("Please type something.", "empty", 0.0, False, "system")
         
         intent, confidence = self.predict_intent(user_input)
-        
-        if confidence >= self.confidence_threshold and intent in self.tag_responses:
-            return self._result(random.choice(self.tag_responses[intent]), intent, confidence, True, "custom_model", local_model=self.get_status().get("local_llm"))
 
-        local_status = self.local_llm.status() if self.local_llm else self.get_status().get("local_llm")
+        local_status = self.local_llm.status()
 
-        if self.local_llm and local_status.get("available") and local_status.get("model_ready"):
+        if local_status.get("available") and local_status.get("model_ready"):
             try:
                 messages = self._build_messages(user_input, history or [], mode)
                 llm_response = self.local_llm.chat(messages, temperature=self._temperature_for(mode, temperature))
                 return self._result(llm_response["content"], intent, confidence, True, "local_llm", model=llm_response["model"], local_model=local_status)
-            except LocalLLMError:
-                pass
+            except LocalLLMError as exc:
+                local_status = {**local_status, "available": False, "model_ready": False, "error": str(exc)}
         
-        return self._result(random.choice(FALLBACK_RESPONSES), intent or "offline", confidence, False, "custom_model", local_model=local_status)
+        return self._result(OLLAMA_OFFLINE_RESPONSE, intent or "ollama_offline", confidence, False, "ollama_offline", local_model=local_status)
 
     def _build_messages(self, user_input: str, history: list[dict], mode: str) -> list[dict]:
         mode_prompt = MODE_PROMPTS.get(mode, MODE_PROMPTS["balanced"])

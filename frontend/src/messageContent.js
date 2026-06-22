@@ -39,7 +39,3 @@ export function parseMessageContent(text) {
 
   return parts;
 }
-
-export function hasCodeBlocks(text) {
-  return parseMessageContent(text).some((part) => part.type === 'code');
-}

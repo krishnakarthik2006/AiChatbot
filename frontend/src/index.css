@@ -678,14 +678,6 @@ button {
   font-weight: 700;
 }
 
-.message-meta span {
-  overflow: hidden;
-  max-width: 220px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
 .message-bubble {
   width: fit-content;
   max-width: 100%;

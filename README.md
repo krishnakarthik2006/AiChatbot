@@ -1,4 +1,4 @@
-# Nexus Local AI Chatbot
+# Local AI Chatbot
 
 This repository contains a private chatbot stack with a Flask backend, a React + Vite frontend, and an Ollama-only local LLM path. The prototype is designed to run on your computer without cloud model APIs or Vercel deployment config.
 

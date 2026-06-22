@@ -3,8 +3,6 @@ import {
   Bot,
   Check,
   Copy,
-  Cpu,
-  Database,
   LogOut,
   MessageSquare,
   Mic,
@@ -13,10 +11,7 @@ import {
   RotateCcw,
   Send,
   Settings,
-  ShieldCheck,
   User,
-  Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { apiRequest, BACKEND_URL } from './api';
 import AuthPage from './AuthPage';
@@ -48,7 +43,7 @@ const messagesFromHistory = (history) => {
   }));
 };
 
-const chatHistoryKey = (userId) => `nexus_chat_history_${userId}`;
+const chatHistoryKey = (userId) => `local_ai_chat_history_${userId}`;
 
 const loadStoredChatHistory = (userId) => {
   if (!userId) return [];
@@ -99,6 +94,25 @@ function App() {
     setChatHistory(loadStoredChatHistory(user.id));
   }, [user?.id]);
 
+  const ensureSession = async (signal) => {
+    if (sessionId) return sessionId;
+
+    try {
+      setStatusMessage('Creating chat session...');
+      const data = await apiRequest('/api/session', { method: 'POST', ...(signal ? { signal } : {}) });
+      const newId = data.session_id || '';
+      setSessionId(newId);
+      setMessages(messagesFromHistory(data.history));
+      setStatusMessage('Chat session ready');
+      return newId;
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setStatusMessage('Could not create session. Check backend and database.');
+      }
+      return '';
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) return undefined;
 
@@ -106,14 +120,14 @@ function App() {
 
     const loadSession = async () => {
       try {
-        setStatusMessage('Loading chat session');
+        setStatusMessage('Loading chat session...');
         const data = await apiRequest('/api/session', { signal: controller.signal });
         setSessionId(data.session_id || '');
         setMessages(messagesFromHistory(data.history));
         setStatusMessage('Chat session ready');
       } catch (error) {
         if (error.name !== 'AbortError') {
-          setStatusMessage('Chat session unavailable');
+          setStatusMessage('Session unavailable. Send will retry.');
         }
       }
     };
@@ -142,8 +156,8 @@ function App() {
         const localModel = data?.local_llm || {};
         setStatusMessage(
           localModel.available && localModel.model_ready
-            ? 'Ollama ready'
-            : localModel.error || 'Ollama offline',
+            ? 'Ready'
+            : localModel.error || 'Assistant offline',
         );
       } catch (error) {
         if (error.name !== 'AbortError') {
@@ -216,26 +230,47 @@ function App() {
     }
   };
 
-  const handleSend = async () => {
-    if (!inputValue.trim() || isLoading || !sessionId) return;
+  const handleSend = async (messageOverride) => {
+    const userText = (messageOverride ?? inputValue).trim();
+    if (!userText || isLoading) return;
+
+    // Auto-create a session if one doesn't exist yet
+    let activeSessionId = sessionId;
+    if (!activeSessionId) {
+      setIsLoading(true);
+      activeSessionId = await ensureSession();
+      if (!activeSessionId) {
+        setIsLoading(false);
+        setStatusMessage('Cannot send. No chat session is available.');
+        appendMessage({
+          sender: 'bot',
+          text: 'I could not start a chat session. Make sure the required services are running, then try again.',
+          meta: {
+            engine: 'error',
+            intent: 'session',
+            confidence: 0,
+          },
+        });
+        return;
+      }
+    }
 
     if (activeHistoryId) {
       setActiveHistoryId(null);
       setStatusMessage('Starting new conversation');
     }
 
-    const userText = inputValue.trim();
     appendMessage({ sender: 'user', text: userText });
     setInputValue('');
     setIsLoading(true);
-    setStatusMessage('Thinking');
+    setStatusMessage('Thinking...');
 
     try {
       const data = await apiRequest('/api/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: userText,
-          session_id: sessionId,
+          session_id: activeSessionId,
           mode,
         }),
       });
@@ -252,10 +287,11 @@ function App() {
         },
       });
       setStatusMessage('Ready');
-    } catch {
+    } catch (error) {
+      const backendMessage = error.data?.error || error.message || 'Unable to reach the backend.';
       appendMessage({
         sender: 'bot',
-        text: 'Unable to reach the backend. Check port 5000 and try again.',
+        text: `${backendMessage} Check the required services, then try again.`,
         meta: {
           engine: 'error',
           intent: 'network',
@@ -266,6 +302,10 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleStarterPrompt = (prompt) => {
+    handleSend(prompt);
   };
 
   const handleLogout = async () => {
@@ -401,11 +441,8 @@ function App() {
 
   const displayName = user?.display_name || user?.email || 'User';
   const localModel = health?.local_llm || {};
-  const installedModels = Array.isArray(localModel.installed_models) ? localModel.installed_models : [];
-  const ollamaReady = Boolean(localModel.available && localModel.model_ready);
-  const modelName = localModel.active_model || localModel.model || 'Ollama';
-  const statusLabel = health ? (ollamaReady ? 'Ollama ready' : 'Ollama offline') : statusMessage;
-  const databaseLabel = health?.database || 'Local database';
+  const assistantReady = Boolean(localModel.available && localModel.model_ready);
+  const statusLabel = health ? (assistantReady ? 'Ready' : 'Offline') : statusMessage;
 
   return (
     <div className="page-shell">
@@ -415,8 +452,8 @@ function App() {
             <Bot size={24} />
           </span>
           <div>
-            <h1>Nexus</h1>
-            <span>{modelName}</span>
+            <h1>AI Assistant</h1>
+            <span>Private workspace</span>
           </div>
         </div>
 
@@ -449,31 +486,6 @@ function App() {
             <Settings size={18} />
           </button>
         </div>
-
-        <section className={`runtime-panel${ollamaReady ? ' online' : ' offline'}`} aria-label="Runtime status">
-          <div className="runtime-row">
-            <span>
-              <Cpu size={16} />
-              Ollama
-            </span>
-            <strong>{ollamaReady ? 'Ready' : 'Offline'}</strong>
-          </div>
-          <div className="runtime-model">{modelName}</div>
-          <div className="runtime-chips">
-            <span>
-              <ShieldCheck size={14} />
-              Local
-            </span>
-            <span>
-              <Database size={14} />
-              {databaseLabel}
-            </span>
-          </div>
-          {!ollamaReady && localModel.error ? <p className="runtime-error">{localModel.error}</p> : null}
-          {installedModels.length > 0 ? (
-            <p className="runtime-footnote">{installedModels.length} local model{installedModels.length === 1 ? '' : 's'} found</p>
-          ) : null}
-        </section>
 
         {profileOpen ? (
           <div className="profile-panel" role="region" aria-label="Profile">
@@ -561,13 +573,12 @@ function App() {
       <main className="chat-panel">
         <header className="panel-header">
           <div>
-            <span className="panel-eyebrow">Local assistant</span>
+            <span className="panel-eyebrow">Workspace</span>
             <h2>{activeHistoryId ? 'Saved chat' : 'Chat'}</h2>
           </div>
-          <div className={`status-pill${ollamaReady ? ' online' : ' offline'}`}>
+          <div className={`status-pill${assistantReady ? ' online' : ' offline'}`}>
             <span className="status-dot" />
             <span>{statusLabel}</span>
-            {ollamaReady ? <Wifi size={16} /> : <WifiOff size={16} />}
           </div>
         </header>
 
@@ -578,7 +589,7 @@ function App() {
               <strong>Start with a prompt</strong>
               <div className="starter-grid">
                 {starterPrompts.map((prompt) => (
-                  <button key={prompt} type="button" onClick={() => setInputValue(prompt)}>
+                  <button key={prompt} type="button" onClick={() => handleStarterPrompt(prompt)} disabled={isLoading}>
                     {prompt}
                   </button>
                 ))}
@@ -591,7 +602,6 @@ function App() {
               <div className="message-stack">
                 <div className="message-meta">
                   <strong>{message.sender === 'user' ? 'You' : 'Assistant'}</strong>
-                  {message.sender === 'bot' && message.meta?.model ? <span>{message.meta.model}</span> : null}
                 </div>
 
                 {message.sender === 'bot' ? (
@@ -710,8 +720,10 @@ function App() {
 
             <button
               className="primary-button"
-              onClick={handleSend}
-              disabled={!inputValue.trim() || isLoading || !sessionId}
+              onClick={() => handleSend()}
+              disabled={!inputValue.trim() || isLoading}
+              aria-label={isLoading ? 'Sending message' : 'Send message'}
+              title={isLoading ? statusMessage : inputValue.trim() ? 'Send message' : 'Type a message first'}
               type="button"
             >
               <Send size={16} />
@@ -724,9 +736,11 @@ function App() {
               ? `Attached: ${attachLabel}`
               : isListening
                 ? 'Listening...'
+                : isLoading
+                  ? statusMessage
                 : inputValue.length > 0
                   ? `${inputValue.length} characters`
-                  : `${statusLabel} on ${modelName}`}
+                  : statusLabel}
           </div>
 
           <div className="sr-only" aria-live="polite">

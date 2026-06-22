@@ -55,7 +55,7 @@ OLLAMA_OFFLINE_RESPONSE = (
     "then send the message again."
 )
 
-BOT_NAME = os.getenv("BOT_NAME", "Nexus")
+BOT_NAME = os.getenv("BOT_NAME", "Assistant")
 
 BASE_SYSTEM_PROMPT = f"""
 You are {BOT_NAME}, a private AI assistant running on the user's computer.

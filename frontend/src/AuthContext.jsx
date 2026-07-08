@@ -8,26 +8,36 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = useCallback(async (signal) => {
     try {
-      const data = await apiRequest('/api/auth/me');
-      setUser(data.user);
-      setError('');
-      return data.user;
+      const data = await apiRequest('/api/auth/me', signal ? { signal } : {});
+      if (!signal?.aborted) {
+        setUser(data.user ?? null);
+        setError('');
+      }
+      return data.user ?? null;
     } catch {
-      setUser(null);
+      if (!signal?.aborted) {
+        setUser(null);
+      }
       return null;
     }
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const bootstrap = async () => {
       setLoading(true);
-      await refreshUser();
-      setLoading(false);
+      await refreshUser(controller.signal);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     };
 
     bootstrap();
+
+    return () => controller.abort();
   }, [refreshUser]);
 
   const login = useCallback(async (email, password) => {
@@ -36,8 +46,9 @@ export function AuthProvider({ children }) {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    setUser(data.user);
-    return data.user;
+    const loggedInUser = data.user ?? null;
+    setUser(loggedInUser);
+    return loggedInUser;
   }, []);
 
   const register = useCallback(async (email, password, displayName) => {
@@ -50,8 +61,9 @@ export function AuthProvider({ children }) {
         display_name: displayName,
       }),
     });
-    setUser(data.user);
-    return data.user;
+    const registeredUser = data.user ?? null;
+    setUser(registeredUser);
+    return registeredUser;
   }, []);
 
   const logout = useCallback(async () => {

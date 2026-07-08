@@ -21,7 +21,12 @@ function AuthPage() {
         await register(email, password, displayName);
       }
     } catch (submitError) {
-      setError(submitError.data?.error || submitError.message || 'Request failed');
+      console.error('Auth error:', submitError);
+      if (submitError.isNetworkError) {
+        setError('Cannot reach the backend. Make sure the server is running.');
+      } else {
+        setError(submitError.data?.error || submitError.message || 'Request failed');
+      }
     } finally {
       setSubmitting(false);
     }

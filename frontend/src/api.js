@@ -2,15 +2,16 @@ export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 export async function apiRequest(path, options = {}) {
   let response;
+  const { headers: customHeaders, ...restOptions } = options;
 
   try {
     response = await fetch(`${BACKEND_URL}${path}`, {
+      ...restOptions,
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...(options.headers || {}),
+        ...(customHeaders || {}),
       },
-      ...options,
     });
   } catch (networkError) {
     const error = new Error(

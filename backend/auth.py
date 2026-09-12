@@ -4,12 +4,14 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from uuid import uuid4
 
 import jwt
 from flask import Blueprint, current_app, g, jsonify, request
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from backend.database import create_account, get_account_by_email, get_account_by_id
+from backend.revocation import is_jti_revoked, revoke_token
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,7 @@ def create_access_token(account, expires_minutes=None):
         'iat': now,
         'exp': now + timedelta(minutes=minutes),
         'aud': JWT_AUDIENCE,
+        'jti': uuid4().hex,
     }
     return jwt.encode(payload, _jwt_secret(), algorithm=JWT_ALGORITHM)
 
@@ -127,6 +130,8 @@ def account_from_request():
         token = request.cookies.get(ACCESS_TOKEN_COOKIE)
     if token:
         claims = decode_access_token(token)
+        if claims and is_jti_revoked(claims.get('jti')):
+            claims = None
         account = get_account_by_id(claims.get('sub')) if claims else None
         if account is not None:
             return account
@@ -215,7 +220,15 @@ def refresh():
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
-    """End the current authenticated session and clear the access token cookie."""
+    """End the current authenticated session, revoke the JWT, and clear the access token cookie."""
+    token = None
+    authorization = request.headers.get('Authorization', '')
+    if authorization.startswith('Bearer '):
+        token = authorization[len('Bearer '):].strip()
+    if not token:
+        token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+    if token:
+        revoke_token(token, _jwt_secret(), JWT_ALGORITHM, audience=JWT_AUDIENCE)
     logout_user()
     response = jsonify({'status': 'logged_out'})
     response.delete_cookie(ACCESS_TOKEN_COOKIE)

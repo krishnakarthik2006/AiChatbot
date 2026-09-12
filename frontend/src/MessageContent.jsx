@@ -38,7 +38,7 @@ function CodeBlock({ language, content, blockId }) {
   );
 }
 
-function MessageContent({ text, messageId, citations = [], confidence, onFeedback, routing, citationVerified, sourceConflicts = [] }) {
+function MessageContent({ text, messageId, citations = [], confidence, onFeedback, routing, citationVerified, sourceConflicts = [], voice }) {
   const parts = parseMessageContent(text);
   const [feedback, setFeedback] = useState(null);
 
@@ -49,7 +49,7 @@ function MessageContent({ text, messageId, citations = [], confidence, onFeedbac
 
   const feedbackControls = (
     <div className="message-output-toolbar">
-      <button type="button" className="icon-button" title="Read aloud" aria-label="Read aloud" onClick={() => speak(text)}><Volume2 size={15} /></button>
+      <button type="button" className="icon-button" title="Read aloud" aria-label="Read aloud" onClick={() => speak(text, voice)}><Volume2 size={15} /></button>
       <button type="button" className={`icon-button${feedback === true ? ' active' : ''}`} title="Helpful" aria-label="Helpful" onClick={() => submitFeedback(true)}><ThumbsUp size={15} /></button>
       <button type="button" className={`icon-button${feedback === false ? ' danger' : ''}`} title="Needs improvement" aria-label="Needs improvement" onClick={() => submitFeedback(false)}><ThumbsDown size={15} /></button>
     </div>
@@ -100,10 +100,15 @@ function TrustInfo({ routing, citationVerified, sourceConflicts }) {
   </p>;
 }
 
-function speak(text) {
+function speak(text, voiceURI) {
   if (!('speechSynthesis' in window)) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  if (voiceURI) {
+    const selected = window.speechSynthesis.getVoices().find((voice) => voice.voiceURI === voiceURI);
+    if (selected) utterance.voice = selected;
+  }
   window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  window.speechSynthesis.speak(utterance);
 }
 
 function RichText({ content }) {

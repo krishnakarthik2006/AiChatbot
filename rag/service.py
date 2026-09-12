@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
+import os
 import re
 from typing import Any
 
@@ -48,6 +49,7 @@ class RAGService:
         self._vector_stores: dict[str, Any] = {}
         self._embeddings = None
         self._load_error: str | None = None
+        self._reranker = None
 
     def _store(self, namespace: str = "shared"):
         if namespace in self._vector_stores:
@@ -105,45 +107,71 @@ class RAGService:
         return {"documents": len(source_docs), "chunks": len(docs), "graph_nodes": len(graph["nodes"])}
 
     def retrieve(self, question: str, top_k: int | None = None, namespace: str = "shared", source: str | None = None) -> list[RetrievedChunk]:
-        """Retrieve candidates semantically, then lightly rerank them by query-term coverage."""
+        """Retrieve candidates semantically, then fuse with BM25 lexical scoring."""
+        from .retrieval import BM25
+
         limit = top_k or config.TOP_K
         store = self._store(namespace)
         matches = store.similarity_search_with_relevance_scores(
             question, k=max(limit * 3, 10), filter={"source": source} if source else None
         )
         query_terms = set(re.findall(r"[\w'-]{3,}", question.lower()))
-        hybrid = {}
+        hybrid: dict[str, tuple[Any, float]] = {}
         for document, score in matches:
             if contains_prompt_injection(document.page_content):
                 continue
             key = document.metadata.get("chunk_id", document.page_content[:80])
             hybrid[key] = (document, float(score))
-        # Lexical retrieval complements semantic search for exact policy codes, names, and dates.
+        # Widen the pool with every corpus document so BM25 also surfaces exact-name matches.
         try:
             corpus = store.get(include=["documents", "metadatas"])
             for content, metadata in zip(corpus.get("documents", []), corpus.get("metadatas", [])):
                 if source and metadata.get("source") != source:
                     continue
-                lexical = self._term_coverage(query_terms, content)
-                if lexical <= 0 or contains_prompt_injection(content):
+                if contains_prompt_injection(content):
                     continue
                 key = metadata.get("chunk_id", content[:80])
-                existing = hybrid.get(key)
-                hybrid[key] = (existing[0] if existing else type("Doc", (), {"page_content": content, "metadata": metadata})(), (existing[1] if existing else 0) + lexical * 0.35)
+                if key not in hybrid:
+                    hybrid[key] = (type("Doc", (), {"page_content": content, "metadata": metadata})(), 0.0)
         except Exception:
             pass
-        chunks = [
-            RetrievedChunk(
+        entries = list(hybrid.values())
+        docs = [document for document, _ in entries]
+        bm25_scores = BM25([document.page_content for document in docs]).score(question)
+        bmax, bmin = max(bm25_scores, default=0.0), min(bm25_scores, default=0.0)
+        span = bmax - bmin
+        lexical_weight = config.HYBRID_LEXICAL_WEIGHT
+        chunks = []
+        for (document, vector_score), bm25_score in zip(entries, bm25_scores):
+            normalized_bm25 = (bm25_score - bmin) / span if span > 0 else 0.0
+            coverage = self._term_coverage(query_terms, document.page_content)
+            chunks.append(RetrievedChunk(
                 content=document.page_content,
                 source=document.metadata.get("source", "unknown"),
                 chunk_id=document.metadata.get("chunk_id", "unknown"),
-                score=float(score) + self._term_coverage(query_terms, document.page_content) * 0.12,
+                score=round(vector_score * (1 - lexical_weight) + normalized_bm25 * lexical_weight + coverage * 0.08, 4),
                 page=document.metadata.get("page"),
-            )
-            for document, score in hybrid.values()
-        ]
+            ))
+        ranked = sorted(chunks, key=lambda item: item.score or 0, reverse=True)[:limit]
+        return self._rerank(question, ranked, limit)
 
-        return sorted(chunks, key=lambda item: item.score or 0, reverse=True)[:limit]
+    def _rerank(self, question: str, chunks: list[RetrievedChunk], limit: int) -> list[RetrievedChunk]:
+        """Optionally refine ordering with a cross-encoder when enabled and installed."""
+        if not config.RERANK_ENABLED or not chunks:
+            return chunks
+        try:
+            from sentence_transformers import CrossEncoder
+        except ImportError:
+            return chunks
+        try:
+            if self._reranker is None:
+                self._reranker = CrossEncoder(config.RERANK_MODEL)
+            pairs = [(question[:512], chunk.content[:512]) for chunk in chunks]
+            scores = self._reranker.predict(pairs).tolist()
+            reordered = [chunk for _, chunk in sorted(zip(scores, chunks), key=lambda pair: pair[0], reverse=True)]
+            return reordered[:limit]
+        except Exception:
+            return chunks
 
     @staticmethod
     def _term_coverage(query_terms: set[str], content: str) -> float:
@@ -151,6 +179,28 @@ class RAGService:
             return 0.0
         content_terms = set(re.findall(r"[\w'-]{3,}", content.lower()))
         return len(query_terms & content_terms) / len(query_terms)
+
+    @staticmethod
+    def _describe_attachments(attachments: list[dict]) -> str:
+        """Caption pasted images with an Ollama vision model when available."""
+        if not attachments:
+            return ""
+        local = LocalLLMClient()
+        descriptions = []
+        for attachment in attachments:
+            data = attachment.get("data", "")
+            if not data:
+                continue
+            base64_data = data.split(",", 1)[-1] if "," in data else data
+            try:
+                description = local.describe_image(base64_data)
+            except LocalLLMError:
+                description = ""
+            if description:
+                descriptions.append(description)
+        if not descriptions:
+            return "\n\nThe user attached an image but it could not be described. Ask the user for the details."
+        return "\n\nUser attached image(s) (auto-described): " + " ".join(descriptions)
 
     def answer(
         self,
@@ -163,6 +213,7 @@ class RAGService:
         use_web_fallback: bool = False,
         memory: list[str] | None = None,
         privacy_mode: bool = False,
+        attachments: list[dict] | None = None,
     ) -> dict[str, Any]:
         if contains_prompt_injection(question):
             return {
@@ -172,8 +223,9 @@ class RAGService:
                 "model": None,
             }
         conversation = (history or [])[-6:]
-        retrieval_query = self._retrieval_query(question, conversation)
+        retrieval_query = self._rewrite_query(question, conversation)
         chunks = self.retrieve(retrieval_query, top_k, namespace, source)
+        image_context = self._describe_attachments(attachments or [])
         route = route_request(question, bool(chunks), use_web_fallback, privacy_mode)
         confidence = max((chunk.score or 0 for chunk in chunks), default=0.0)
         web_fallback_used = False
@@ -198,7 +250,7 @@ class RAGService:
             f"{SYSTEM_PROMPT.format(language=language or detect_language_hint(question))}\n\n"
             f"User-approved long-term memory: {'; '.join(memory or []) or '(none)'}\n\n"
             f"Recent conversation (use only to resolve follow-up references):\n{history_text or '(none)'}\n\n"
-            f"Context:\n{context}\n\nQuestion: {question}"
+            f"Context:\n{context}\n{image_context}\nQuestion: {question}"
         )
         if route["engine"] == "local":
             local = LocalLLMClient()
@@ -244,6 +296,43 @@ class RAGService:
         previous_user_turns = [item.get("content", "") for item in history if item.get("role") == "user"]
         return f"{previous_user_turns[-1]} {question}" if previous_user_turns else question
 
+    def _rewrite_query(self, question: str, conversation: list[dict]) -> str:
+        """Rewrite a brief follow-up into a standalone retrieval query when a generator is reachable.
+
+        Falls back to the lexical heuristic when rewriting is disabled, no model is available,
+        or the generator output is unusable.
+        """
+        if not config.QUERY_REWRITE_ENABLED or len(question.split()) > 8 or not conversation:
+            return self._retrieval_query(question, conversation)
+        if not os.environ.get("GROQ_API_KEY"):
+            try:
+                if not LocalLLMClient().status().get("model_ready"):
+                    return self._retrieval_query(question, conversation)
+            except Exception:
+                return self._retrieval_query(question, conversation)
+        history_text = "\n".join(
+            f"{item.get('role', 'user').title()}: {item.get('content', '')}" for item in conversation[-4:]
+        )
+        rewrite_prompt = (
+            "You rewrite brief chat follow-up questions into standalone search queries for document "
+            "retrieval. Resolve pronouns and references using the conversation turns. Keep every named "
+            "entity, date, and key term needed to search a document corpus. Output only the rewritten "
+            "query, with no commentary or quotation marks.\n\n"
+            f"Conversation:\n{history_text}\n\nFollow-up: {question}\n\nRewritten query:"
+        )
+        try:
+            if os.environ.get("GROQ_API_KEY"):
+                from langchain_groq import ChatGroq
+                rewritten = ChatGroq(model=config.GROQ_MODEL, temperature=0).invoke(rewrite_prompt).content
+            else:
+                rewritten = LocalLLMClient().chat([{"role": "user", "content": rewrite_prompt}], temperature=0)["content"]
+        except Exception:
+            return self._retrieval_query(question, conversation)
+        cleaned = str(rewritten or "").strip().strip('"').strip()
+        if not cleaned or len(cleaned.split()) <= len(question.split()):
+            return self._retrieval_query(question, conversation)
+        return cleaned
+
     def status(self) -> dict[str, Any]:
         chroma = {"connected": False, "directory": str(config.CHROMA_DIR), "collection_prefix": config.COLLECTION_NAME}
         try:
@@ -260,6 +349,10 @@ class RAGService:
             "chunk_size": config.CHUNK_SIZE,
             "chunk_overlap": config.CHUNK_OVERLAP,
             "top_k": config.TOP_K,
+            "query_rewrite_enabled": config.QUERY_REWRITE_ENABLED,
+            "hybrid_lexical_weight": config.HYBRID_LEXICAL_WEIGHT,
+            "rerank_enabled": config.RERANK_ENABLED,
+            "rerank_model": config.RERANK_MODEL,
             "retrieval_confidence_threshold": config.RETRIEVAL_CONFIDENCE_THRESHOLD,
             "documents_directory": str(config.DOCUMENTS_DIR),
             "chroma": chroma,

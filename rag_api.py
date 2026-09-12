@@ -17,10 +17,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from rag.service import RAGService
-from rag.auth import current_identity, enforce_rate_limit, require_admin
+from rag.auth import admin_rate_limits, current_identity, enforce_rate_limit, require_admin
 from rag import config
-from rag.storage import (admin_document_overview, admin_metrics_timeline, audit_events, document_path, list_documents,
-                         owner_directory, safe_filename, save_index_state, write_audit_event,
+from rag.storage import (admin_anomalies, admin_chroma_status, admin_document_overview, admin_metrics_timeline, audit_events, document_path,
+                         list_documents, owner_directory, safe_filename, save_index_state, write_audit_event,
                          record_feedback, record_metric, admin_metrics, materialized_documents,
                          read_document_bytes, write_document, cleanup_expired_documents,
                          retention_rules, set_retention, document_versions)
@@ -47,6 +47,11 @@ app.add_middleware(
 service = RAGService()
 
 
+class Attachment(BaseModel):
+    mime: str = Field(default="image/*", max_length=40)
+    data: str = Field(default="", max_length=15_000_000)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     top_k: Optional[int] = Field(default=None, ge=1, le=10)
@@ -55,6 +60,7 @@ class ChatRequest(BaseModel):
     use_web_fallback: bool = False
     privacy_mode: bool = False
     workspace_id: Optional[str] = Field(default=None, max_length=64)
+    attachments: List[Attachment] = Field(default_factory=list, max_length=4)
 
 
 class MemoryRequest(BaseModel):
@@ -403,7 +409,8 @@ def chat(payload: ChatRequest, identity: dict = Depends(current_identity)) -> di
         namespace = permitted_namespace(payload.workspace_id, identity)
         result = service.answer(payload.message, payload.top_k, namespace=namespace, history=payload.history,
                                 language=payload.language, use_web_fallback=payload.use_web_fallback,
-                                memory=get_memory(owner_id(identity)), privacy_mode=payload.privacy_mode)
+                                memory=get_memory(owner_id(identity)), privacy_mode=payload.privacy_mode,
+                                attachments=[attachment.dict() for attachment in payload.attachments])
         result["latency_ms"] = round((perf_counter() - started) * 1000)
         record_metric(owner_id(identity), result.get("confidence", 0), result["latency_ms"], len(result.get("citations", [])), result.get("web_fallback_used", False), payload.message)
         return result
@@ -422,7 +429,8 @@ def stream_chat(payload: ChatRequest, identity: dict = Depends(current_identity)
             write_audit_event(owner_id(identity), "rag_question_stream", "document-grounded request")
             result = service.answer(payload.message, payload.top_k, namespace=namespace, history=payload.history,
                                     language=payload.language, use_web_fallback=payload.use_web_fallback,
-                                    memory=get_memory(owner_id(identity)), privacy_mode=payload.privacy_mode)
+                                    memory=get_memory(owner_id(identity)), privacy_mode=payload.privacy_mode,
+                                    attachments=[attachment.dict() for attachment in payload.attachments])
             result["latency_ms"] = round((perf_counter() - started) * 1000)
             record_metric(owner_id(identity), result.get("confidence", 0), result["latency_ms"], len(result.get("citations", [])), result.get("web_fallback_used", False), payload.message)
             response = result.pop("response", "")
@@ -452,6 +460,21 @@ def metrics(identity: dict = Depends(require_admin)) -> dict:
 @app.get("/api/admin/metrics/timeline")
 def metrics_timeline(days: int = 14, identity: dict = Depends(require_admin)) -> dict:
     return {"days": admin_metrics_timeline(days=max(1, min(days, 90)))}
+
+
+@app.get("/api/admin/chroma")
+def chroma_status(identity: dict = Depends(require_admin)) -> dict:
+    return admin_chroma_status()
+
+
+@app.get("/api/admin/quotas")
+def admin_quotas(identity: dict = Depends(require_admin)) -> dict:
+    return admin_rate_limits()
+
+
+@app.get("/api/admin/anomalies")
+def admin_anomalies_view(days: int = 30, identity: dict = Depends(require_admin)) -> dict:
+    return admin_anomalies(days=days)
 
 
 @app.get("/api/admin/evaluation")

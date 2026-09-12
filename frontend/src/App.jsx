@@ -2,24 +2,35 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Bot,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Command,
   Copy,
   Cpu,
   Database,
   Download,
+  FileDown,
+  Lock,
   LogOut,
   MessageSquare,
   Mic,
   Paperclip,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   RotateCcw,
+  Search,
   Send,
   Settings,
   ShieldCheck,
   Square,
   Sun,
   Moon,
+  Undo2,
+  Upload,
   User,
+  X,
 } from 'lucide-react';
 import { apiRequest, BACKEND_URL, RAG_BACKEND_URL, ragApiRequest, ragApiStream } from './api';
 import AuthPage from './AuthPage';
@@ -85,6 +96,19 @@ const formatHistoryDate = (isoDate) => {
 
 const createMessageId = () => `${crypto.randomUUID()}`;
 
+const deriveTitle = (text) => {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return 'New conversation';
+  const title = clean.length <= 44 ? clean : `${clean.slice(0, 44).trimEnd()}…`;
+  return title.charAt(0).toUpperCase() + title.slice(1);
+};
+
+const sha256 = async (text) => {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
 function App() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -98,6 +122,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [health, setHealth] = useState(null);
   const [ragHealth, setRagHealth] = useState(null);
+  const [llmModels, setLlmModels] = useState([]);
+  const [llmModel, setLlmModel] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [statusMessage, setStatusMessage] = useState('Checking backend');
   const [chatHistory, setChatHistory] = useState([]);
@@ -114,10 +140,36 @@ function App() {
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [composerCopyActive, setComposerCopyActive] = useState(false);
   const [attachLabel, setAttachLabel] = useState('');
+  const [pastedImage, setPastedImage] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState('');
+  const [transcriptSearchOpen, setTranscriptSearchOpen] = useState(false);
+  const [transcriptSearch, setTranscriptSearch] = useState('');
+  const [transcriptCursor, setTranscriptCursor] = useState(0);
+  const [chatSnapshots, setChatSnapshots] = useState([]);
+  const [reactions, setReactions] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ai_chatbot_reactions') || '{}') || {};
+    } catch {
+      return {};
+    }
+  });
+  const [ttsVoice, setTtsVoice] = useState(() => localStorage.getItem('ai_chatbot_tts_voice') || '');
+  const [sttLang, setSttLang] = useState(() => localStorage.getItem('ai_chatbot_stt_lang') || 'en-US');
+  const [pinHash, setPinHash] = useState(() => localStorage.getItem('ai_chatbot_pin') || '');
+  const [autoLockMinutes, setAutoLockMinutes] = useState(() => Number(localStorage.getItem('ai_chatbot_auto_lock_minutes')) || 5);
+  const [locked, setLocked] = useState(false);
+  const [lockInput, setLockInput] = useState('');
+  const [lockPinDraft, setLockPinDraft] = useState('');
+  const [lockError, setLockError] = useState(false);
+  const lastActivityRef = useRef(0);
+  const [voices, setVoices] = useState([]);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
   const requestControllerRef = useRef(null);
+  const paletteInputRef = useRef(null);
+  const messageRowRefs = useRef({});
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -220,6 +272,37 @@ function App() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (engine !== 'local') return;
+    let cancelled = false;
+    apiRequest('/api/local/models')
+      .then((data) => {
+        if (cancelled) return;
+        setLlmModels(data.models || []);
+        setLlmModel(data.current || '');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [engine]);
+
+  const changeLlmModel = async (event) => {
+    const name = event.target.value;
+    setLlmModel(name);
+    try {
+      const result = await apiRequest('/api/local/models', {
+        method: 'POST',
+        body: JSON.stringify({ model: name }),
+      });
+      setLlmModel(result.current || name);
+      const status = await apiRequest('/api/health');
+      setHealth(status);
+      const localModel = status?.local_llm || {};
+      setStatusMessage(localModel.available && localModel.model_ready ? 'Model switched' : localModel.error || 'Assistant offline');
+    } catch (error) {
+      setStatusMessage(error.message);
+    }
+  };
+
   const persistChatHistory = (entries) => {
     if (!user?.id) return;
     setChatHistory(entries);
@@ -234,12 +317,15 @@ function App() {
     if (messages.length === 0) return;
 
     const firstUserMessage = messages.find((message) => message.sender === 'user');
-    const title = firstUserMessage?.text?.trim().slice(0, 48) || 'New conversation';
+    const title = deriveTitle(firstUserMessage?.text);
+    const entryId = sessionId || messages[0]?.id || 'local-chat';
+    const existing = chatHistory.find((chat) => chat.id === entryId);
     const entry = {
-      id: sessionId || `chat-${Date.now()}`,
+      id: entryId,
       title,
       messages,
       updatedAt: new Date().toISOString(),
+      pinned: existing?.pinned ?? false,
     };
 
     const nextHistory = [entry, ...chatHistory.filter((chat) => chat.id !== entry.id)].slice(0, 30);
@@ -248,6 +334,7 @@ function App() {
 
   const loadHistoryChat = (chat) => {
     setActiveHistoryId(chat.id);
+    checkpointMessages();
     setMessages(messagesFromHistory(chat.messages));
     setInputValue('');
     setSettingsOpen(false);
@@ -267,11 +354,30 @@ function App() {
     if (activeHistoryId === chat.id) setActiveHistoryId(null);
   };
 
+  const togglePin = (chat) => {
+    persistChatHistory(chatHistory.map((item) => (item.id === chat.id ? { ...item, pinned: !item.pinned } : item)));
+  };
+
   const exportConversation = (chat = null) => {
     const payload = chat || { title: 'Current conversation', messages };
     const file = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(file);
     const link = Object.assign(document.createElement('a'), { href: url, download: 'ai_chatbot-conversation.json' });
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportConversationMarkdown = (chat = null) => {
+    const items = chat?.messages || messages;
+    const title = chat?.title || deriveTitle(items.find((message) => message.sender === 'user')?.text);
+    const lines = [`# ${title}`, ''];
+    items.forEach((message) => {
+      if (!message.text) return;
+      lines.push(`**${message.sender === 'user' ? 'You' : 'Assistant'}**:`, '', message.text, '');
+    });
+    const file = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(file);
+    const link = Object.assign(document.createElement('a'), { href: url, download: 'ai_chatbot-conversation.md' });
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -335,8 +441,11 @@ function App() {
       : baseHistory;
     if (options.editMessage) setEditingMessageId(null);
 
+    checkpointMessages();
     setMessages([...base, { id: createMessageId(), sender: 'user', text }]);
     setInputValue('');
+    const attachments = pastedImage ? [{ mime: 'image/png', data: pastedImage.dataUrl }] : [];
+    setPastedImage(null);
     setIsLoading(true);
     setStatusMessage('Thinking...');
 
@@ -352,7 +461,7 @@ function App() {
         requestControllerRef.current = controller;
         await ragApiStream('/api/chat/stream', {
           method: 'POST', signal: controller.signal,
-                body: JSON.stringify({ message: text, history: ragHistory, language: responseLanguage, use_web_fallback: webFallback, privacy_mode: privacyMode, workspace_id: activeWorkspace?.id }),
+                body: JSON.stringify({ message: text, history: ragHistory, attachments, language: responseLanguage, use_web_fallback: webFallback, privacy_mode: privacyMode, workspace_id: activeWorkspace?.id }),
         }, (event) => {
           if (event.type === 'delta') {
             setMessages((previous) => previous.map((item) => item.id === messageId ? { ...item, text: `${item.text}${event.text}` } : item));
@@ -444,6 +553,7 @@ function App() {
     if (!userMessage) return;
     setActiveHistoryId(null);
     setInputValue('');
+    checkpointMessages();
     performSend(userMessage.text, messages.slice(0, messages.indexOf(userMessage)));
   };
 
@@ -513,6 +623,21 @@ function App() {
     event.target.value = '';
   };
 
+  const handleComposerPaste = (event) => {
+    const items = event.clipboardData?.items || [];
+    const imageItem = Array.from(items).find((item) => item.type.startsWith('image/'));
+    if (!imageItem) return;
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPastedImage({ name: file.name || 'pasted-image.png', dataUrl: String(reader.result) });
+      setStatusMessage(`Image pasted (${Math.round(file.size / 1024)} KB)`);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const toggleVoiceInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -527,7 +652,7 @@ function App() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
+    recognition.lang = sttLang;
     recognition.interimResults = true;
     recognition.continuous = false;
 
@@ -612,6 +737,250 @@ function App() {
     setStatusMessage('Nothing to clear');
   };
 
+  const checkpointMessages = () => {
+    setChatSnapshots((previous) => [...previous, messages].slice(-20));
+  };
+
+  const undoLast = () => {
+    if (!chatSnapshots.length) return;
+    const previous = chatSnapshots[chatSnapshots.length - 1];
+    setChatSnapshots((stack) => stack.slice(0, -1));
+    setMessages(messagesFromHistory(previous));
+    setEditingMessageId(null);
+    setStatusMessage('Change undone');
+  };
+
+  const toggleReaction = (message, emoji) => {
+    setReactions((previous) => {
+      const current = previous[message.id] || {};
+      const next = { ...current };
+      if (next[emoji]) {
+        delete next[emoji];
+      } else {
+        next[emoji] = true;
+      }
+      return { ...previous, [message.id]: next };
+    });
+  };
+
+  const submitPin = async () => {
+    if (!pinHash || lockInput.length < 4) return;
+    const inputHash = await sha256(lockInput);
+    if (inputHash === pinHash) {
+      setLocked(false);
+      setLockInput('');
+      setLockError(false);
+      lastActivityRef.current = Date.now();
+    } else {
+      setLockError(true);
+      setLockInput('');
+    }
+  };
+
+  const lockNow = () => {
+    setLockInput('');
+    setLockError(false);
+    setLocked(true);
+  };
+
+  const downloadAppBackup = () => {
+    const preferences = {};
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('ai_chatbot_')) {
+        preferences[key] = localStorage.getItem(key);
+      }
+    }
+    const historyKey = chatHistoryKey(user?.id);
+    const backup = {
+      app: 'ai_chatbot',
+      exported_at: new Date().toISOString(),
+      user_id: user?.id,
+      preferences,
+      history: { [historyKey]: localStorage.getItem(historyKey) },
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `ai-chatbot-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const restoreAppBackup = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const payload = JSON.parse(reader.result);
+        if (payload.app !== 'ai_chatbot') {
+          setStatusMessage('That file is not an ai_chatbot backup.');
+          return;
+        }
+        Object.entries(payload.preferences || {}).forEach(([key, value]) => localStorage.setItem(key, value));
+        const currentHistoryKey = chatHistoryKey(user?.id);
+        Object.entries(payload.history || {}).forEach(([key, value]) => {
+          if (key === currentHistoryKey && value != null) localStorage.setItem(key, value);
+        });
+        setStatusMessage('Backup restored. Reloading…');
+        window.location.reload();
+      } catch {
+        setStatusMessage('Could not read that backup file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  useEffect(() => {
+    localStorage.setItem('ai_chatbot_reactions', JSON.stringify(reactions));
+  }, [reactions]);
+
+  useEffect(() => {
+    localStorage.setItem('ai_chatbot_tts_voice', ttsVoice);
+  }, [ttsVoice]);
+
+  useEffect(() => {
+    localStorage.setItem('ai_chatbot_stt_lang', sttLang);
+  }, [sttLang]);
+
+  useEffect(() => {
+    if (pinHash) {
+      localStorage.setItem('ai_chatbot_pin', pinHash);
+    } else {
+      localStorage.removeItem('ai_chatbot_pin');
+    }
+  }, [pinHash]);
+
+  useEffect(() => {
+    localStorage.setItem('ai_chatbot_auto_lock_minutes', String(autoLockMinutes));
+  }, [autoLockMinutes]);
+
+  useEffect(() => {
+    if (!lastActivityRef.current) lastActivityRef.current = Date.now();
+    const markActive = () => { lastActivityRef.current = Date.now(); };
+    const lockIfIdle = () => {
+      if (!pinHash || autoLockMinutes <= 0) return;
+      if (Date.now() - lastActivityRef.current >= autoLockMinutes * 60 * 1000) {
+        setLockInput('');
+        setLockError(false);
+        setLocked(true);
+      }
+    };
+    const onVisibility = () => { if (!document.hidden) lockIfIdle(); };
+    window.addEventListener('keydown', markActive);
+    window.addEventListener('mousemove', markActive);
+    window.addEventListener('touchstart', markActive);
+    document.addEventListener('visibilitychange', onVisibility);
+    const timer = window.setInterval(lockIfIdle, 1000);
+    return () => {
+      window.removeEventListener('keydown', markActive);
+      window.removeEventListener('mousemove', markActive);
+      window.removeEventListener('touchstart', markActive);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [pinHash, autoLockMinutes]);
+
+  useEffect(() => {
+    const loadVoices = () => setVoices(window.speechSynthesis?.getVoices() || []);
+    loadVoices();
+    window.speechSynthesis?.addEventListener?.('voiceschanged', loadVoices);
+    return () => window.speechSynthesis?.removeEventListener?.('voiceschanged', loadVoices);
+  }, []);
+
+  const transcriptQuery = transcriptSearch.trim().toLowerCase();
+  const matchingIndexes = transcriptQuery
+    ? messages.map((message, index) => (message.text.toLowerCase().includes(transcriptQuery) ? index : -1)).filter((index) => index >= 0)
+    : [];
+
+  const scrollToTranscriptMatch = (direction) => {
+    if (!matchingIndexes.length) return;
+    const next = (transcriptCursor + matchingIndexes.length + direction) % matchingIndexes.length;
+    setTranscriptCursor(next);
+    messageRowRefs.current[matchingIndexes[next]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const paletteCommands = [
+    { label: 'New chat', icon: Plus, run: () => resetConversation() },
+    ...(chatSnapshots.length ? [{ label: 'Undo last change', icon: Undo2, run: () => undoLast() }] : []),
+    { label: 'Toggle theme', icon: Moon, run: () => setTheme((value) => (value === 'light' ? 'dark' : 'light')) },
+    { label: 'Search chats', icon: Search, run: () => { setSettingsOpen(false); window.setTimeout(() => document.getElementById('history-search-input')?.focus(), 50); } },
+    { label: 'Search this conversation', icon: MessageSquare, run: () => setTranscriptSearchOpen(true) },
+    { label: 'Export chat (JSON)', icon: Download, run: () => exportConversation() },
+    { label: 'Export chat (Markdown)', icon: FileDown, run: () => exportConversationMarkdown() },
+    { label: 'Copy last reply', icon: Copy, run: () => copyLastResponse() },
+    { label: 'Documents', icon: Database, run: () => { setDocumentsOpen((open) => !open); setSettingsOpen(false); setProfileOpen(false); setAdminOpen(false); setAdvancedOpen(false); } },
+    { label: 'Settings', icon: Settings, run: () => { setSettingsOpen((open) => !open); setProfileOpen(false); setDocumentsOpen(false); setAdminOpen(false); setAdvancedOpen(false); } },
+    { label: 'Admin dashboard', icon: ShieldCheck, run: () => { setAdminOpen((open) => !open); setDocumentsOpen(false); setAdvancedOpen(false); } },
+    { label: 'Advanced tools', icon: Cpu, run: () => { setAdvancedOpen((open) => !open); setDocumentsOpen(false); setAdminOpen(false); } },
+  ];
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const target = event.target;
+      const isTyping = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+      if (locked) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        if (paletteOpen) {
+          setPaletteOpen(false);
+        } else {
+          setPaletteQuery('');
+          setPaletteOpen(true);
+        }
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && isTyping) {
+        event.preventDefault();
+        if (!isLoading && inputValue.trim()) handleSend();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !isTyping) {
+        event.preventDefault();
+        if (chatSnapshots.length) undoLast();
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        if (paletteOpen) {
+          setPaletteOpen(false);
+          return;
+        }
+        if (transcriptSearchOpen) {
+          setTranscriptSearchOpen(false);
+          setTranscriptSearch('');
+          return;
+        }
+        if (settingsOpen || documentsOpen || adminOpen || advancedOpen || profileOpen) {
+          setSettingsOpen(false);
+          setDocumentsOpen(false);
+          setAdminOpen(false);
+          setAdvancedOpen(false);
+          setProfileOpen(false);
+          return;
+        }
+        if (editingMessageId) {
+          cancelEdit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
+  useEffect(() => {
+    if (paletteOpen) {
+      paletteInputRef.current?.focus();
+    }
+  }, [paletteOpen]);
+
   useEffect(() => () => { recognitionRef.current?.stop(); requestControllerRef.current?.abort(); }, []);
 
   if (authLoading) {
@@ -634,6 +1003,33 @@ function App() {
     .find((message) => message.sender === 'bot' && message.text && message.meta?.engine !== 'error')?.id;
 
   return (
+    <>
+      {locked ? (
+        <div className="lock-screen" role="dialog" aria-modal="true" aria-label="Workspace locked">
+          <form className="lock-card" onSubmit={(event) => { event.preventDefault(); submitPin(); }}>
+            <span className="lock-icon"><Lock size={28} /></span>
+            <strong>Workspace locked</strong>
+            <p>Enter your PIN to continue.</p>
+            <input
+              autoFocus
+              className="lock-pin"
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]{4,8}"
+              maxLength={8}
+              autoComplete="off"
+              value={lockInput}
+              onChange={(event) => { setLockInput(event.target.value.replace(/\D/g, '')); setLockError(false); }}
+              placeholder="• • • •"
+              aria-label="PIN"
+            />
+            {lockError ? <p className="lock-error">Incorrect PIN — try again.</p> : null}
+            <button className="primary-button" type="submit" disabled={lockInput.length < 4}>
+              Unlock
+            </button>
+          </form>
+        </div>
+      ) : null}
     <div className="page-shell">
       <a className="skip-link" href="#chat-main">Skip to chat</a>
       <aside className="sidebar" aria-label="Workspace">
@@ -721,6 +1117,29 @@ function App() {
               </button>
             </label>
             <label className="settings-field">
+              <span>Voice input language</span>
+              <select value={sttLang} onChange={(event) => setSttLang(event.target.value)} className="select-field" aria-label="Voice input language">
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="es-ES">Spanish</option>
+                <option value="ja-JP">Japanese</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Text-to-speech voice</span>
+              <select value={ttsVoice} onChange={(event) => setTtsVoice(event.target.value)} className="select-field" aria-label="Text-to-speech voice">
+                <option value="">System default</option>
+                {voices.map((voice) => (
+                  <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} ({voice.lang})</option>
+                ))}
+              </select>
+            </label>
+            <label className="settings-field">
               <span>Assistant engine</span>
               <select
                 value={engine}
@@ -735,6 +1154,15 @@ function App() {
                 ))}
               </select>
             </label>
+            {engine === 'local' ? (
+              <label className="settings-field">
+                <span>Local model (Ollama)</span>
+                <select value={llmModel} onChange={changeLlmModel} className="select-field" aria-label="Local model" disabled={!llmModels.length}>
+                  {llmModels.length === 0 ? <option value="">No models installed</option> : null}
+                  {llmModels.map((model) => <option key={model} value={model}>{model}</option>)}
+                </select>
+              </label>
+            ) : null}
             <label className="settings-field">
               <span>Response mode</span>
               <select
@@ -750,6 +1178,56 @@ function App() {
                 ))}
               </select>
             </label>
+            <div className="settings-field">
+              <span>Lock screen</span>
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{4,8}"
+                maxLength={8}
+                autoComplete="new-password"
+                aria-label="Lock screen PIN"
+                placeholder={pinHash ? 'Type a new PIN to change it' : '4–8 digit PIN to enable'}
+                value={lockPinDraft}
+                onChange={async (event) => {
+                  const value = event.target.value.replace(/\D/g, '');
+                  setLockPinDraft(value);
+                  if (value.length >= 4) {
+                    setPinHash(await sha256(value));
+                  } else if (value.length === 0) {
+                    setPinHash('');
+                  }
+                }}
+              />
+            </div>
+            <label className="settings-field">
+              <span>Auto-lock after</span>
+              <select value={autoLockMinutes} onChange={(event) => setAutoLockMinutes(Number(event.target.value))} className="select-field" aria-label="Auto-lock after">
+                <option value={0}>Never</option>
+                <option value={1}>1 minute</option>
+                <option value={5}>5 minutes</option>
+                <option value={15}>15 minutes</option>
+                <option value={30}>30 minutes</option>
+                <option value={60}>1 hour</option>
+              </select>
+            </label>
+            {pinHash ? (
+              <label className="settings-field">
+                <span>{autoLockMinutes > 0 ? `Workspace (auto-locks after ${autoLockMinutes} min idle)` : 'Workspace'}</span>
+                <button className="secondary-button" type="button" onClick={lockNow}><Lock size={15} /> Lock now</button>
+              </label>
+            ) : null}
+            <div className="settings-field">
+              <span>Backup & restore</span>
+              <div className="settings-row">
+                <button className="secondary-button" type="button" onClick={downloadAppBackup} title="Download chat history and preferences as JSON"><Download size={15} /> Backup</button>
+                <label className="secondary-button backup-import" title="Restore chats and preferences from a backup file">
+                  <Upload size={15} /> Restore
+                  <input type="file" accept="application/json,.json" onChange={restoreAppBackup} />
+                </label>
+              </div>
+              <small>Backup stores chat history and preferences. On restore, settings apply after a reload.</small>
+            </div>
           </div>
         ) : null}
 
@@ -760,9 +1238,10 @@ function App() {
         <section className="history-section" aria-label="Chat history">
           <div className="history-heading-row">
             <h2 className="history-heading">Chat history</h2>
-            <button className="icon-button" type="button" title="Export current chat" aria-label="Export current chat" onClick={() => exportConversation()}><Download size={15} /></button>
+            <button className="icon-button" type="button" title="Export current chat (JSON)" aria-label="Export current chat as JSON" onClick={() => exportConversation()}><Download size={15} /></button>
+            <button className="icon-button" type="button" title="Export current chat (Markdown)" aria-label="Export current chat as Markdown" onClick={() => exportConversationMarkdown()}><FileDown size={15} /></button>
           </div>
-          <input className="history-search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search chats" aria-label="Search chats" />
+          <input className="history-search" id="history-search-input" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search chats" aria-label="Search chats" />
 
           <div className="history-list">
             {!activeHistoryId && messages.length > 0 ? (
@@ -773,7 +1252,7 @@ function App() {
               >
                 <MessageSquare size={16} />
                 <span className="history-item-text">
-                  <strong>Current chat</strong>
+                  <strong>{deriveTitle(messages.find((message) => message.sender === 'user')?.text)}</strong>
                   <small>Active</small>
                 </span>
               </button>
@@ -782,17 +1261,22 @@ function App() {
             {chatHistory.length === 0 && (activeHistoryId || messages.length === 0) ? (
               <p className="history-empty">No previous chats yet</p>
             ) : (
-              chatHistory.filter((chat) => chat.title.toLowerCase().includes(historyQuery.toLowerCase())).map((chat) => (
-                <div className={`history-item-row${activeHistoryId === chat.id ? ' active' : ''}`} key={chat.id}>
-                  <button type="button" className="history-item" onClick={() => loadHistoryChat(chat)}>
-                    <MessageSquare size={16} />
-                    <span className="history-item-text"><strong>{chat.title}</strong><small>{formatHistoryDate(chat.updatedAt)}</small></span>
-                  </button>
-                  <button type="button" className="history-mini-action" title="Rename" onClick={() => renameHistory(chat)}>✎</button>
-                  <button type="button" className="history-mini-action" title="Export" onClick={() => exportConversation(chat)}><Download size={13} /></button>
-                  <button type="button" className="history-mini-action danger" title="Delete" onClick={() => deleteHistory(chat)}>×</button>
-                </div>
-              ))
+              (() => {
+                const filtered = chatHistory.filter((chat) => chat.title.toLowerCase().includes(historyQuery.toLowerCase()));
+                const ordered = [...filtered.filter((chat) => chat.pinned && !isLoading), ...filtered.filter((chat) => !chat.pinned)];
+                return ordered.map((chat) => (
+                  <div className={`history-item-row${activeHistoryId === chat.id ? ' active' : ''}${chat.pinned ? ' pinned' : ''}`} key={chat.id}>
+                    <button type="button" className="history-item" onClick={() => loadHistoryChat(chat)}>
+                      <MessageSquare size={16} />
+                      <span className="history-item-text"><strong>{chat.title}</strong><small>{formatHistoryDate(chat.updatedAt)}</small></span>
+                    </button>
+                    <button type="button" className={`history-mini-action${chat.pinned ? ' pinned-active' : ''}`} title={chat.pinned ? 'Unpin' : 'Pin'} aria-label={chat.pinned ? 'Unpin chat' : 'Pin chat'} onClick={() => togglePin(chat)}>{chat.pinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
+                    <button type="button" className="history-mini-action" title="Rename" onClick={() => renameHistory(chat)}>✎</button>
+                    <button type="button" className="history-mini-action" title="Export" onClick={() => exportConversation(chat)}><Download size={13} /></button>
+                    <button type="button" className="history-mini-action danger" title="Delete" onClick={() => deleteHistory(chat)}>×</button>
+                  </div>
+                ));
+              })()
             )}
           </div>
         </section>
@@ -821,6 +1305,8 @@ function App() {
             {activeWorkspace ? <small className="workspace-active">Shared workspace: {activeWorkspace.name} <button type="button" onClick={() => setActiveWorkspace(null)}>Leave</button></small> : null}
           </div>
           <NotificationCenter />
+          <button className="icon-button" type="button" title="Undo last change (Ctrl+Z)" aria-label="Undo last change" onClick={undoLast} disabled={!chatSnapshots.length}><Undo2 size={16} /></button>
+          <button className="icon-button" type="button" title="Search conversation (Ctrl+K for all commands)" aria-label="Search this conversation" onClick={() => setTranscriptSearchOpen((open) => !open)}><Search size={16} /></button>
           <div className={`status-pill${assistantReady ? ' online' : ' offline'}`}>
             <span className="status-dot" />
             <span>{statusLabel}</span>
@@ -828,6 +1314,23 @@ function App() {
         </header>
 
         <section className="messages-area" aria-live="polite">
+          {transcriptSearchOpen ? (
+            <div className="transcript-search">
+              <Search size={14} />
+              <input
+                className="text-field transcript-search-input"
+                placeholder="Search this conversation…"
+                value={transcriptSearch}
+                onChange={(event) => { setTranscriptSearch(event.target.value); setTranscriptCursor(0); }}
+                aria-label="Search this conversation"
+                autoFocus
+              />
+              <span className="transcript-search-count">{matchingIndexes.length ? `${transcriptCursor + 1}/${matchingIndexes.length}` : 'No matches'}</span>
+              <button className="icon-button" type="button" onClick={() => scrollToTranscriptMatch(-1)} disabled={!matchingIndexes.length} aria-label="Previous match" title="Previous match"><ChevronUp size={15} /></button>
+              <button className="icon-button" type="button" onClick={() => scrollToTranscriptMatch(1)} disabled={!matchingIndexes.length} aria-label="Next match" title="Next match"><ChevronDown size={15} /></button>
+              <button className="icon-button" type="button" onClick={() => { setTranscriptSearchOpen(false); setTranscriptSearch(''); }} aria-label="Close conversation search" title="Close search"><X size={15} /></button>
+            </div>
+          ) : null}
           {messages.length === 0 && !isLoading ? (
             <div className="empty-state">
               <Bot size={32} />
@@ -842,8 +1345,8 @@ function App() {
             </div>
           ) : null}
 
-          {messages.map((message) => (
-            <article key={message.id} className={`message-row ${message.sender}`}>
+          {messages.map((message, messageIndex) => (
+            <article key={message.id} ref={(element) => { messageRowRefs.current[messageIndex] = element; }} className={`message-row ${message.sender}`}>
               <div className="message-stack">
                 <div className="message-meta">
                   <strong>{message.sender === 'user' ? 'You' : 'Assistant'}</strong>
@@ -858,6 +1361,7 @@ function App() {
                     routing={message.meta?.routing}
                     citationVerified={message.meta?.citationVerified}
                     sourceConflicts={message.meta?.sourceConflicts}
+                    voice={ttsVoice}
                     onFeedback={(helpful) => recordFeedback(message, helpful)}
                   />
                 ) : (
@@ -876,6 +1380,21 @@ function App() {
                       Regenerate
                     </button>
                   ) : null}
+                </div>
+                <div className="message-reactions">
+                  {['👍', '❤️', '💡', '🔍', '🚩'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className={`reaction-chip${reactions[message.id]?.[emoji] ? ' active' : ''}`}
+                      onClick={() => toggleReaction(message, emoji)}
+                      title={`React ${emoji}`}
+                      aria-pressed={Boolean(reactions[message.id]?.[emoji])}
+                      aria-label={`React with ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
               </div>
             </article>
@@ -937,6 +1456,7 @@ function App() {
                   handleSend();
                 }
               }}
+              onPaste={handleComposerPaste}
               disabled={isLoading}
               aria-label="Message"
               rows={1}
@@ -1009,6 +1529,14 @@ function App() {
             </div>
           ) : null}
 
+          {pastedImage ? (
+            <div className="pasted-image">
+              <img src={pastedImage.dataUrl} alt="Pasted image preview" />
+              <span>{pastedImage.name}</span>
+              <button type="button" onClick={() => { setPastedImage(null); setStatusMessage('Image attachment removed'); }} title="Remove pasted image" aria-label="Remove pasted image"><X size={14} /></button>
+            </div>
+          ) : null}
+
           <div className="composer-hint" aria-hidden="true">
             {attachLabel
               ? `Attached: ${attachLabel}`
@@ -1030,7 +1558,45 @@ function App() {
           </div>
         </footer>
       </main>
+
+      {paletteOpen ? (
+        <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Commands" onClick={(event) => { if (event.target === event.currentTarget) setPaletteOpen(false); }}>
+          <div className="command-palette">
+            <div className="command-palette-input">
+              <Command size={15} />
+              <input
+                ref={paletteInputRef}
+                className="text-field"
+                value={paletteQuery}
+                onChange={(event) => setPaletteQuery(event.target.value)}
+                placeholder="Type a command…"
+                aria-label="Command"
+              />
+              <kbd>Esc</kbd>
+            </div>
+            <div className="command-list">
+              {paletteCommands
+                .filter((command) => command.label.toLowerCase().includes(paletteQuery.toLowerCase()))
+                .map((command) => (
+                  <button
+                    key={command.label}
+                    type="button"
+                    className="command-item"
+                    onClick={() => {
+                      setPaletteOpen(false);
+                      command.run();
+                    }}
+                  >
+                    {command.icon ? <command.icon size={15} /> : null}
+                    {command.label}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
+    </>
   );
 }
 

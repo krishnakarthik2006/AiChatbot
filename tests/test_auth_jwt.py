@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash
 
 from backend import auth
 from backend.auth import JWT_ALGORITHM, JWT_AUDIENCE, auth_required, create_access_token, decode_access_token, init_auth
+from backend import revocation
 from backend.models import Account
 
 
@@ -58,10 +59,46 @@ def test_expired_token_rejected():
         assert decode_access_token(token) is None
 
 
-def test_token_lifetime_matches_configured_minutes():
+def test_token_lifetime_matches_configured_minutes(monkeypatch):
+    monkeypatch.setenv("JWT_ACCESS_TOKEN_MINUTES", "30")
     app = _token_app()
     with app.app_context():
         assert auth.token_lifetime_seconds() == 1800
+
+
+def test_token_includes_jti():
+    app = _token_app()
+    with app.app_context():
+        claims = decode_access_token(create_access_token(_account()))
+    assert claims.get("jti")
+
+
+def _use_revocation_file(monkeypatch, tmp_path):
+    file = tmp_path / "blacklist.json"
+    monkeypatch.setattr(revocation, "REVOCATION_FILE", file)
+    return file
+
+
+def test_logout_revokes_bearer_token(monkeypatch, tmp_path):
+    _use_revocation_file(monkeypatch, tmp_path)
+    app, account = _authenticated_app(monkeypatch)
+    client = app.test_client()
+    login = client.post("/api/auth/login", json={"email": "user@example.com", "password": "password123"})
+    token = login.get_json()["access_token"]
+
+    assert client.get("/api/protected", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    assert client.post("/api/auth/logout").status_code == 200
+    assert client.get("/api/protected", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+
+
+def test_revoked_token_rejected_before_expiry(monkeypatch, tmp_path):
+    _use_revocation_file(monkeypatch, tmp_path)
+    app = _token_app()
+    with app.app_context():
+        token = create_access_token(_account())
+        jti = decode_access_token(token).get("jti")
+    revocation.revoke_token(token, app.config["SECRET_KEY"], JWT_ALGORITHM, audience=JWT_AUDIENCE)
+    assert revocation.is_jti_revoked(jti) is True
 
 
 def _authenticated_app(monkeypatch):

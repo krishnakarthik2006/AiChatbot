@@ -33,7 +33,17 @@ def current_identity(authorization: Optional[str] = Header(default=None)) -> dic
         raise HTTPException(status_code=401, detail="The ai_chatbot token is invalid or expired.") from exc
     if not payload.get("sub"):
         raise HTTPException(status_code=401, detail="The ai_chatbot token is invalid.")
+    if _is_revoked(payload.get("jti")):
+        raise HTTPException(status_code=401, detail="The ai_chatbot token has been revoked.")
     return {"account_id": payload["sub"], "email": payload.get("email"), "is_admin": payload.get("is_admin", False)}
+
+
+def _is_revoked(jti) -> bool:
+    try:
+        from backend.revocation import is_jti_revoked
+        return is_jti_revoked(jti)
+    except Exception:
+        return False
 
 
 def require_admin(identity: dict = Depends(current_identity)) -> dict:
@@ -42,8 +52,15 @@ def require_admin(identity: dict = Depends(current_identity)) -> dict:
     return identity
 
 
-def enforce_rate_limit(identity: dict, limit: int = 30, window_seconds: int = 60) -> None:
+def _rate_limit_config() -> tuple:
+    limit = int(os.getenv("RAG_RATE_LIMIT_PER_MINUTE", "30"))
+    return limit, 60
+
+
+def enforce_rate_limit(identity: dict, limit: int | None = None, window_seconds: int = 60) -> None:
     """Small in-process limiter for local deployments; rejects bursts before model execution."""
+    if limit is None:
+        limit, window_seconds = _rate_limit_config()
     now = monotonic()
     requests = REQUESTS_BY_ACCOUNT[str(identity["account_id"])]
     while requests and now - requests[0] > window_seconds:
@@ -51,3 +68,19 @@ def enforce_rate_limit(identity: dict, limit: int = 30, window_seconds: int = 60
     if len(requests) >= limit:
         raise HTTPException(status_code=429, detail="Too many requests. Please wait a minute and try again.")
     requests.append(now)
+
+
+def admin_rate_limits() -> dict:
+    """Expose the current in-process rate-limit state for the admin UI."""
+    limit, window_seconds = _rate_limit_config()
+    now = monotonic()
+    accounts = []
+    for account_id, requests in REQUESTS_BY_ACCOUNT.items():
+        active = sum(1 for stamp in requests if now - stamp <= window_seconds)
+        accounts.append({
+            "account_id": account_id,
+            "active_requests": active,
+            "remaining": max(0, limit - active),
+        })
+    accounts.sort(key=lambda item: item["active_requests"], reverse=True)
+    return {"limit": limit, "window_seconds": window_seconds, "accounts": accounts}

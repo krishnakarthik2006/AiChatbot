@@ -15,7 +15,8 @@ except ImportError:
     join_room = None
 
 from chatbot import Chatbot
-from backend.config import get_config
+from local_llm import runtime_model, set_runtime_model
+from backend.config import check_env_placeholders, get_config, warn_placeholders
 from backend.auth import auth_required, init_auth
 from backend.database import (
     init_db, get_user_by_session_id, create_user_session,
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 config = get_config()
 app.config.from_object(config)
+warn_placeholders(logger)
 
 # Initialize extensions
 init_auth(app)
@@ -159,6 +161,27 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/api/local/models', methods=['GET'])
+@auth_required
+def local_models():
+    """List the Ollama models the current user may switch to."""
+    status = bot.local_llm.status()
+    models = status.get('installed_models', []) or []
+    current = runtime_model() or status.get('model') or (models[0] if models else None)
+    return jsonify({'models': models, 'current': current, 'base_url': status.get('base_url')})
+
+
+@app.route('/api/local/models', methods=['POST'])
+@auth_required
+def local_models_set():
+    """Switch the active local model for all subsequent local-engine requests."""
+    data = request.get_json(silent=True) or {}
+    name = (data.get('model') or '').strip()
+    set_runtime_model(name or None)
+    status = bot.local_llm.status(max_age=0)
+    return jsonify({'current': runtime_model() or status.get('active_model'), 'model_ready': status.get('model_ready'), 'installed_models': status.get('installed_models', [])})
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """Check application health."""
@@ -172,6 +195,7 @@ def health():
         'active_sessions': len(active_sessions),
         'nlp_engine': 'NLTK+Scikit-learn',
         'storage': 'local JSON + ChromaDB',
+        'config_warnings': [problem['key'] for problem in check_env_placeholders()],
     })
 
 

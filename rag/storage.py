@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import base64
+import math
 import os
 import re
 import shutil
@@ -237,6 +238,40 @@ def admin_metrics() -> dict:
     }
 
 
+def _directory_size_bytes(directory: Path) -> int:
+    if not directory.exists():
+        return 0
+    return sum(path.stat().st_size for path in directory.rglob("*") if path.is_file())
+
+
+def admin_chroma_status() -> dict:
+    """Collection counts and persisted corpus size across the Chroma stores."""
+    collections, total_chunks = [], 0
+    try:
+        import chromadb
+        config.CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+        client = chromadb.PersistentClient(path=str(config.CHROMA_DIR))
+        for collection in client.list_collections():
+            count = collection.count()
+            total_chunks += count
+            collections.append({"name": collection.name, "chunks": count})
+        collections.sort(key=lambda item: item["name"])
+        return {
+            "connected": True,
+            "collections": collections,
+            "total_chunks": total_chunks,
+            "directory_size_bytes": _directory_size_bytes(config.CHROMA_DIR),
+        }
+    except Exception as exc:
+        return {
+            "connected": False,
+            "error": str(exc),
+            "collections": collections,
+            "total_chunks": total_chunks,
+            "directory_size_bytes": _directory_size_bytes(config.CHROMA_DIR),
+        }
+
+
 def admin_metrics_timeline(days: int = 14) -> list[dict]:
     """Per-UTC-day answer volume and average latency across all accounts."""
     totals: dict[str, dict] = {}
@@ -263,3 +298,55 @@ def admin_metrics_timeline(days: int = 14) -> list[dict]:
             "average_latency_ms": round(bucket["latency"] / bucket["answers"]) if bucket["answers"] else 0,
         })
     return timeline
+
+
+def _storage_history() -> list[dict]:
+    records = [] if not config.ADMIN_DATA_DIR.exists() else _read_jsonl(config.ADMIN_DATA_DIR / ".storage_history.jsonl")
+    return [record for record in records if "at" in record]
+
+
+def _storage_growth_mb() -> dict:
+    """Snapshot user/chroma storage size and report growth since the last sample."""
+    total = _directory_size_bytes(config.USER_DOCUMENTS_DIR) + _directory_size_bytes(config.CHROMA_DIR)
+    total_mb = round(total / (1024 * 1024), 1)
+    records = _storage_history()
+    previous = records[-1].get("total_bytes") if records else None
+    config.ADMIN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _append_jsonl(config.ADMIN_DATA_DIR / ".storage_history.jsonl", {
+        "at": datetime.now(timezone.utc).isoformat(), "total_bytes": total, "total_mb": total_mb,
+    })
+    if len(records) > 90:
+        trimmed = records[-90:]
+        (config.ADMIN_DATA_DIR / ".storage_history.jsonl").write_text(
+            "".join(json.dumps(record) + "\n" for record in trimmed), encoding="utf-8"
+        )
+    growth_mb = round((total - (previous or 0)) / (1024 * 1024), 1)
+    return {"growth_mb": growth_mb, "total_mb": total_mb}
+
+
+def admin_anomalies(days: int = 30) -> dict:
+    """Flag daily request spikes and storage growth beyond configured thresholds."""
+    anomalies: list[dict] = []
+    timeline = admin_metrics_timeline(days=max(days, 7))
+    active = [day for day in timeline if day["answers"] > 0]
+    total = sum(day["answers"] for day in active)
+    baseline = total / len(active) if active else 0
+    for day in active:
+        others_mean = (total - day["answers"]) / max(1, len(active) - 1) if len(active) > 1 else baseline
+        threshold = max(math.ceil(2.5 * others_mean), 10)
+        if baseline > 0 and day["answers"] >= threshold:
+            anomalies.append({
+                "type": "request_spike", "date": day["date"], "requests": day["answers"],
+                "baseline": round(baseline, 1),
+                "detail": f"{day['answers']} documents answers on {day['date']} vs ~{baseline:.0f}/day baseline",
+            })
+    growth = _storage_growth_mb()
+    alert_mb = float(os.getenv("RAG_STORAGE_GROWTH_ALERT_MB", "200"))
+    if growth["growth_mb"] >= alert_mb:
+        anomalies.append({
+            "type": "storage_growth", "growth_mb": growth["growth_mb"], "total_mb": growth["total_mb"],
+            "detail": f"{growth['growth_mb']:.1f} MB added since the last admin check "
+                      f"(total {growth['total_mb']:.1f} MB). Review uploaded documents.",
+        })
+    anomalies.sort(key=lambda item: item.get("date", "0"), reverse=True)
+    return {"anomalies": anomalies, "checked_at": datetime.now(timezone.utc).isoformat()}

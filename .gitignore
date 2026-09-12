@@ -14,6 +14,9 @@ backend/local_store.tmp
 user_documents/
 knowledge_graph/
 workspaces/
+.jwt_blacklist.json
+.active_llm_model
+admin_data/
 
 # Environment
 .venv/

@@ -2,16 +2,45 @@ import { useEffect, useState } from 'react';
 import { Play, ShieldCheck } from 'lucide-react';
 import { ragApiRequest } from './api';
 
+function TimelineChart({ label, data, valueKey, format }) {
+  const max = Math.max(1, ...data.map((day) => day[valueKey]));
+  return (
+    <div className="admin-chart" role="img" aria-label={`${label}: ${data.map((day) => `${day.date} ${day[valueKey]}`).join(', ')}`}>
+      <strong>{label}</strong>
+      <div className="admin-chart-bars">
+        {data.map((day) => (
+          <div className="admin-chart-col" key={day.date} title={`${day.date}: ${format(day[valueKey])}`}>
+            <div className="admin-chart-bar" style={{ height: `${Math.max(4, Math.round((day[valueKey] / max) * 100))}%` }} />
+            <small>{day.date.slice(8)}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanel({ onClose }) {
   const [accounts, setAccounts] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [timeline, setTimeline] = useState([]);
   const [evaluation, setEvaluation] = useState(null);
   const [runStatus, setRunStatus] = useState('');
   const [status, setStatus] = useState('Loading audit overview…');
 
   useEffect(() => {
-    Promise.all([ragApiRequest('/api/admin/overview'), ragApiRequest('/api/admin/metrics'), ragApiRequest('/api/admin/evaluation')])
-      .then(([overview, metricData, evaluationData]) => { setAccounts(overview.accounts || []); setMetrics(metricData); setEvaluation(evaluationData); setStatus(''); })
+    Promise.all([
+      ragApiRequest('/api/admin/overview'),
+      ragApiRequest('/api/admin/metrics'),
+      ragApiRequest('/api/admin/metrics/timeline?days=14'),
+      ragApiRequest('/api/admin/evaluation'),
+    ])
+      .then(([overview, metricData, timelineData, evaluationData]) => {
+        setAccounts(overview.accounts || []);
+        setMetrics(metricData);
+        setTimeline(timelineData.days || []);
+        setEvaluation(evaluationData);
+        setStatus('');
+      })
       .catch((error) => setStatus(error.message));
   }, []);
 
@@ -34,6 +63,12 @@ export default function AdminPanel({ onClose }) {
       <div className="document-manager-header"><div><span>Administrator</span><strong>Document audit</strong></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
       {status ? <p className="document-status">{status}</p> : null}
       {metrics ? <div className="admin-metrics"><span>{metrics.answers} answers</span><span>{metrics.average_latency_ms} ms avg.</span><span>{Math.round(metrics.average_confidence * 100)}% confidence</span></div> : null}
+      {timeline.length ? (
+        <div className="admin-charts">
+          <TimelineChart label="Answers per day" data={timeline} valueKey="answers" format={(value) => `${value} answers`} />
+          <TimelineChart label="Avg. latency (ms) per day" data={timeline} valueKey="average_latency_ms" format={(value) => `${value} ms`} />
+        </div>
+      ) : null}
       {evaluation ? <p className="document-status">Evaluation: {evaluation.total_cases} cases · security guards {evaluation.guard_passed}/{evaluation.guard_total}</p> : null}
       <button className="secondary-button" type="button" onClick={runEvaluation}><Play size={14} /> Run retrieval evaluation</button>
       {runStatus ? <p className="document-status">{runStatus}</p> : null}

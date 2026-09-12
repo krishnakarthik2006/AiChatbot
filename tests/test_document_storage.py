@@ -1,5 +1,5 @@
 from rag import config
-from rag.storage import admin_metrics, audit_events, document_path, record_feedback, record_metric, safe_filename, write_audit_event
+from rag.storage import admin_metrics, admin_metrics_timeline, audit_events, document_path, record_feedback, record_metric, safe_filename, write_audit_event
 
 
 def test_document_filename_validation_rejects_path_traversal_and_unknown_types():
@@ -32,3 +32,14 @@ def test_metrics_and_unhelpful_feedback_are_available_for_review(monkeypatch, tm
     summary = admin_metrics()
     assert summary["answers"] == 1
     assert summary["failed_reviews"][0]["message_id"] == "message-1"
+
+
+def test_metrics_timeline_aggregates_by_utc_day(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "USER_DOCUMENTS_DIR", tmp_path)
+    record_metric("account-1", 0.7, 120, 2, False)
+    timeline = admin_metrics_timeline(days=3)
+    assert len(timeline) == 3
+    today = timeline[-1]
+    assert today["answers"] == 1
+    assert today["average_latency_ms"] == 120
+    assert all(item["answers"] == 0 for item in timeline[:-1])

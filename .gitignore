@@ -1,0 +1,19 @@
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data (generated at first start)
+backend/local_store.json
+backend/local_store.tmp
+user_documents/
+knowledge_graph/
+workspaces/
+
+# Environment
+.venv/

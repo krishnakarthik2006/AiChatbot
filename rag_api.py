@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from rag.service import RAGService
 from rag.auth import current_identity, enforce_rate_limit, require_admin
 from rag import config
-from rag.storage import (admin_document_overview, audit_events, document_path, list_documents,
+from rag.storage import (admin_document_overview, admin_metrics_timeline, audit_events, document_path, list_documents,
                          owner_directory, safe_filename, save_index_state, write_audit_event,
                          record_feedback, record_metric, admin_metrics, materialized_documents,
                          read_document_bytes, write_document, cleanup_expired_documents,
@@ -447,6 +447,11 @@ def admin_audit(account_id: str, identity: dict = Depends(require_admin)) -> dic
 @app.get("/api/admin/metrics")
 def metrics(identity: dict = Depends(require_admin)) -> dict:
     return admin_metrics()
+
+
+@app.get("/api/admin/metrics/timeline")
+def metrics_timeline(days: int = 14, identity: dict = Depends(require_admin)) -> dict:
+    return {"days": admin_metrics_timeline(days=max(1, min(days, 90)))}
 
 
 @app.get("/api/admin/evaluation")

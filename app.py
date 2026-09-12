@@ -2,8 +2,7 @@
 import os
 import logging
 from uuid import uuid4
-from flask import Flask, render_template, request, jsonify
-from flask_login import current_user, login_required
+from flask import Flask, g, render_template, request, jsonify
 try:
     from flask_cors import CORS
 except ImportError:
@@ -17,7 +16,7 @@ except ImportError:
 
 from chatbot import Chatbot
 from backend.config import get_config
-from backend.auth import init_auth
+from backend.auth import auth_required, init_auth
 from backend.database import (
     init_db, get_user_by_session_id, create_user_session,
     save_conversation, get_conversation_history, clear_user_session,
@@ -177,10 +176,10 @@ def health():
 
 
 @app.route('/api/session', methods=['GET', 'POST', 'DELETE'])
-@login_required
+@auth_required
 def session_http():
     """Create or return the browser's current local chat session."""
-    account_id = current_user.id
+    account_id = g.account.id
     data = request.get_json(silent=True) or {}
     existing_session_id = data.get('session_id') or request.cookies.get(SESSION_COOKIE_NAME)
 
@@ -217,10 +216,10 @@ def session_http():
 
 
 @app.route('/api/chat', methods=['POST'])
-@login_required
+@auth_required
 def chat_http():
     """HTTP endpoint for chat (fallback for non-WebSocket clients)."""
-    account_id = current_user.id
+    account_id = g.account.id
     data = request.get_json(silent=True) or {}
     user_message = (data.get('message') or '').strip()
     session_id = (data.get('session_id') or request.cookies.get(SESSION_COOKIE_NAME) or '').strip()

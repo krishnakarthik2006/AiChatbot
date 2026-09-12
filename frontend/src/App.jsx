@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Mic,
   Paperclip,
+  Pencil,
   Plus,
   RotateCcw,
   Send,
@@ -109,6 +110,8 @@ function App() {
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState(null);
   const [composerCopyActive, setComposerCopyActive] = useState(false);
   const [attachLabel, setAttachLabel] = useState('');
   const messagesEndRef = useRef(null);
@@ -297,9 +300,9 @@ function App() {
     }
   };
 
-  const handleSend = async (messageOverride) => {
-    const userText = (messageOverride ?? inputValue).trim();
-    if (!userText || isLoading) return;
+  const performSend = async (userText, baseHistory, options = {}) => {
+    const text = (userText ?? '').trim();
+    if (!text || isLoading) return;
 
     // Auto-create a session if one doesn't exist yet
     let activeSessionId = sessionId;
@@ -327,13 +330,18 @@ function App() {
       setStatusMessage('Starting new conversation');
     }
 
-    appendMessage({ sender: 'user', text: userText });
+    const base = options.editMessage
+      ? baseHistory.slice(0, baseHistory.findIndex((message) => message.id === options.editMessage))
+      : baseHistory;
+    if (options.editMessage) setEditingMessageId(null);
+
+    setMessages([...base, { id: createMessageId(), sender: 'user', text }]);
     setInputValue('');
     setIsLoading(true);
     setStatusMessage('Thinking...');
 
     try {
-      const ragHistory = messages.slice(-6).map((message) => ({
+      const ragHistory = base.slice(-6).map((message) => ({
         role: message.sender === 'bot' ? 'assistant' : 'user',
         content: message.text,
       }));
@@ -344,7 +352,7 @@ function App() {
         requestControllerRef.current = controller;
         await ragApiStream('/api/chat/stream', {
           method: 'POST', signal: controller.signal,
-                body: JSON.stringify({ message: userText, history: ragHistory, language: responseLanguage, use_web_fallback: webFallback, privacy_mode: privacyMode, workspace_id: activeWorkspace?.id }),
+                body: JSON.stringify({ message: text, history: ragHistory, language: responseLanguage, use_web_fallback: webFallback, privacy_mode: privacyMode, workspace_id: activeWorkspace?.id }),
         }, (event) => {
           if (event.type === 'delta') {
             setMessages((previous) => previous.map((item) => item.id === messageId ? { ...item, text: `${item.text}${event.text}` } : item));
@@ -364,7 +372,7 @@ function App() {
       const data = await apiRequest('/api/chat', {
             method: 'POST',
             body: JSON.stringify({
-              message: userText,
+              message: text,
               session_id: activeSessionId,
               mode,
             }),
@@ -403,6 +411,40 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSend = (messageOverride) => {
+    performSend(messageOverride ?? inputValue, messages, editingMessageId ? { editMessage: editingMessageId } : {});
+  };
+
+  const startEdit = (message) => {
+    if (isLoading) return;
+    setEditingMessageId(message.id);
+    setInputValue(message.text);
+    setStatusMessage('Editing message — press send to update it');
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setInputValue('');
+    setStatusMessage('Editing cancelled');
+  };
+
+  const regenerateReply = (botMessage) => {
+    if (isLoading) return;
+    const botIndex = messages.findIndex((message) => message.id === botMessage.id);
+    if (botIndex < 0) return;
+    let userMessage = null;
+    for (let index = botIndex - 1; index >= 0; index -= 1) {
+      if (messages[index].sender === 'user') {
+        userMessage = messages[index];
+        break;
+      }
+    }
+    if (!userMessage) return;
+    setActiveHistoryId(null);
+    setInputValue('');
+    performSend(userMessage.text, messages.slice(0, messages.indexOf(userMessage)));
   };
 
   const stopGeneration = () => {
@@ -486,39 +528,48 @@ function App() {
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.continuous = false;
 
     recognition.onstart = () => {
       setIsListening(true);
+      setLiveTranscript('');
       setStatusMessage('Listening...');
+    };
+
+    recognition.onresult = (voiceEvent) => {
+      let interim = '';
+      let final = '';
+      for (let index = voiceEvent.resultIndex; index < voiceEvent.results.length; index += 1) {
+        const transcript = voiceEvent.results[index][0]?.transcript || '';
+        if (voiceEvent.results[index].isFinal) {
+          final += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      if (final.trim()) {
+        setInputValue((previous) => (previous ? `${previous} ${final}` : final).trim());
+        setStatusMessage('Voice captured');
+      }
+      setLiveTranscript(interim.trim());
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      setLiveTranscript('');
       setStatusMessage('Ready');
     };
 
     recognition.onerror = (voiceError) => {
       setIsListening(false);
+      setLiveTranscript('');
       if (voiceError.error === 'not-allowed') {
         setStatusMessage('Microphone permission denied');
       } else if (voiceError.error === 'no-speech') {
         setStatusMessage('No speech detected');
       } else {
         setStatusMessage('Voice input failed');
-      }
-    };
-
-    recognition.onresult = (voiceEvent) => {
-      const transcript = Array.from(voiceEvent.results)
-        .map((result) => result[0]?.transcript || '')
-        .join(' ')
-        .trim();
-
-      if (transcript) {
-        setInputValue((previous) => (previous ? `${previous} ${transcript}` : transcript));
-        setStatusMessage('Voice captured');
       }
     };
 
@@ -579,6 +630,8 @@ function App() {
   const statusLabel = engine === 'rag'
     ? (assistantReady ? 'RAG ready' : 'RAG API offline')
     : (health ? (assistantReady ? 'Ready' : 'Offline') : statusMessage);
+  const lastBotMessageId = [...messages].reverse()
+    .find((message) => message.sender === 'bot' && message.text && message.meta?.engine !== 'error')?.id;
 
   return (
     <div className="page-shell">
@@ -810,6 +863,20 @@ function App() {
                 ) : (
                   <div className="message-bubble">{message.text}</div>
                 )}
+
+                <div className="message-actions">
+                  {message.sender === 'user' ? (
+                    <button type="button" className="message-action" onClick={() => startEdit(message)} disabled={isLoading} title="Edit and resend message" aria-label="Edit message">
+                      <Pencil size={13} />
+                      Edit
+                    </button>
+                  ) : message.id === lastBotMessageId ? (
+                    <button type="button" className="message-action" onClick={() => regenerateReply(message)} disabled={isLoading} title="Regenerate reply" aria-label="Regenerate reply">
+                      <RotateCcw size={13} />
+                      Regenerate
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </article>
           ))}
@@ -935,13 +1002,24 @@ function App() {
             ) : null}
           </div>
 
+          {editingMessageId ? (
+            <div className="editing-banner" role="status">
+              <span>Editing a previous message — send to update the conversation</span>
+              <button type="button" onClick={cancelEdit} disabled={isLoading}>Cancel</button>
+            </div>
+          ) : null}
+
           <div className="composer-hint" aria-hidden="true">
             {attachLabel
               ? `Attached: ${attachLabel}`
-              : isListening
-                ? 'Listening...'
-                : isLoading
-                  ? statusMessage
+              : editingMessageId
+                ? 'Editing previous message'
+                : isListening
+                  ? liveTranscript
+                    ? `Listening: ${liveTranscript}…`
+                    : 'Listening...'
+                  : isLoading
+                    ? statusMessage
                 : inputValue.length > 0
                   ? `${inputValue.length} characters`
                   : statusLabel}

@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 from hashlib import sha256
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import config
@@ -235,3 +235,31 @@ def admin_metrics() -> dict:
         "failed_reviews": failed[-30:][::-1],
         "weak_queries": [item.get("query", "") for item in metrics if item.get("confidence", 0) < config.RETRIEVAL_CONFIDENCE_THRESHOLD and item.get("query")][-30:][::-1],
     }
+
+
+def admin_metrics_timeline(days: int = 14) -> list[dict]:
+    """Per-UTC-day answer volume and average latency across all accounts."""
+    totals: dict[str, dict] = {}
+    if config.USER_DOCUMENTS_DIR.exists():
+        for directory in config.USER_DOCUMENTS_DIR.iterdir():
+            if not directory.is_dir():
+                continue
+            for item in _read_jsonl(directory / ".metrics.jsonl"):
+                try:
+                    day = datetime.fromisoformat(item["at"]).astimezone(timezone.utc).date().isoformat()
+                except (KeyError, ValueError):
+                    continue
+                bucket = totals.setdefault(day, {"answers": 0, "latency": 0})
+                bucket["answers"] += 1
+                bucket["latency"] += int(item.get("latency_ms", 0))
+    today = datetime.now(timezone.utc).date()
+    timeline = []
+    for offset in range(max(days, 1) - 1, -1, -1):
+        date_label = (today - timedelta(days=offset)).isoformat()
+        bucket = totals.get(date_label, {"answers": 0, "latency": 0})
+        timeline.append({
+            "date": date_label,
+            "answers": bucket["answers"],
+            "average_latency_ms": round(bucket["latency"] / bucket["answers"]) if bucket["answers"] else 0,
+        })
+    return timeline

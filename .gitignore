@@ -17,3 +17,5 @@ workspaces/
 
 # Environment
 .venv/
+.env
+.env.local

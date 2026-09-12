@@ -118,27 +118,13 @@ def train_model(patterns, labels, preprocessor, model_path, vectorizer_path, int
 
 
 def save_intents_to_db(intents_data):
-    """Save intents to MySQL database."""
+    """Save optional intent metadata to the local JSON store."""
     try:
-        from flask import Flask
         from backend.database import save_intent, init_db
-        from backend.config import get_config
-        from backend.models import db
-        
-        app = Flask(__name__)
-        config = get_config()
-        app.config.from_object(config)
-        db.init_app(app)
-        
-        with app.app_context():
-            init_db(app)
-            for intent in intents_data.get('intents', []):
-                save_intent(
-                    tag=intent['tag'],
-                    patterns=intent.get('patterns', []),
-                    responses=intent.get('responses', [])
-                )
-            logger.info("Intents saved to database")
+        init_db()
+        for intent in intents_data.get('intents', []):
+            save_intent(tag=intent['tag'], patterns=intent.get('patterns', []), responses=intent.get('responses', []))
+        logger.info("Intents saved to local store")
     except Exception as e:
         logger.warning(f"Could not save intents to database: {e}")
 
@@ -174,7 +160,7 @@ def main():
     with open(intents_path, 'wb') as f:
         pickle.dump(metadata, f)
     
-    # Try to save to database
+    # Persist optional intent metadata locally
     save_intents_to_db(intents_data)
     
     logger.info("Training completed successfully!")

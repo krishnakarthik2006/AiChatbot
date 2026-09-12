@@ -1,214 +1,94 @@
-"""Database utilities and connection management."""
-import logging
-from sqlalchemy import inspect, text
-from sqlalchemy.exc import SQLAlchemyError
-from backend.models import db, Account, User, Conversation, Intent, ModelMetadata
+"""Atomic JSON persistence for local application data.
 
-logger = logging.getLogger(__name__)
+ChromaDB remains the independent vector store for RAG embeddings. This file stores only
+accounts, authenticated chat sessions, message history, and optional training metadata.
+"""
+from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import Lock
+from types import SimpleNamespace
 
-def _ensure_user_account_column():
-    """Add account_id to users when upgrading an existing database."""
-    inspector = inspect(db.engine)
-    if 'users' not in inspector.get_table_names():
-        return
+from werkzeug.security import generate_password_hash
+from backend.models import Account
 
-    columns = {column['name'] for column in inspector.get_columns('users')}
-    if 'account_id' in columns:
-        return
-
-    with db.engine.begin() as connection:
-        connection.execute(text(
-            "ALTER TABLE users ADD COLUMN account_id INT NULL, "
-            "ADD INDEX ix_users_account_id (account_id), "
-            "ADD CONSTRAINT fk_users_account_id "
-            "FOREIGN KEY (account_id) REFERENCES accounts(id)"
-        ))
-    logger.info("Added users.account_id column for authentication.")
+_LOCK = Lock()
 
 
-def init_db(app):
-    """Initialize the database with the Flask app."""
-    with app.app_context():
-        db.create_all()
-        _ensure_user_account_column()
-        logger.info("Database tables created/verified.")
+def _path(): return Path(__file__).resolve().parent / "local_store.json"
+def _empty(): return {"accounts": [], "sessions": [], "conversations": [], "intents": [], "model_metadata": []}
+def _load():
+    try: return {**_empty(), **json.loads(_path().read_text(encoding="utf-8"))}
+    except (OSError, json.JSONDecodeError): return _empty()
+def _save(data):
+    path = _path(); temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"); temp.replace(path)
+def _row(items, key, value): return next((item for item in items if str(item.get(key)) == str(value)), None)
+def _object(row): return SimpleNamespace(**row) if row else None
+def _account(row): return Account(**row) if row else None
+def _next(items): return max((item["id"] for item in items), default=0) + 1
+def _now(): return datetime.now(timezone.utc).isoformat()
+
+
+def init_db(app=None):
+    with _LOCK:
+        if not _path().exists(): _save(_empty())
 
 
 def create_account(email, password, display_name=None):
-    """Create a registered account."""
-    try:
-        account = Account(email=email, display_name=display_name)
-        account.set_password(password)
-        db.session.add(account)
-        db.session.commit()
-        logger.info("Created account: %s", email)
-        return account
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error("Error creating account: %s", e)
-        return None
+    with _LOCK:
+        data = _load()
+        if _row(data["accounts"], "email", email): return None
+        row = {"id": _next(data["accounts"]), "email": email, "password_hash": generate_password_hash(password), "display_name": display_name, "created_at": _now()}
+        data["accounts"].append(row); _save(data); return _account(row)
 
 
-def get_account_by_email(email):
-    """Fetch an account by email address."""
-    try:
-        return Account.query.filter_by(email=email).first()
-    except SQLAlchemyError as e:
-        logger.error("Error retrieving account: %s", e)
-        return None
+def get_account_by_email(email): return _account(_row(_load()["accounts"], "email", email))
+def get_account_by_id(account_id): return _account(_row(_load()["accounts"], "id", account_id))
 
 
 def create_user_session(session_id, account_id=None):
-    """Create a new chat session."""
-    try:
-        user = User(session_id=session_id, account_id=account_id)
-        db.session.add(user)
-        db.session.commit()
-        logger.info("Created user session: %s", session_id)
-        return user
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error("Error creating user session: %s", e)
-        return None
+    with _LOCK:
+        data = _load(); row = {"id": _next(data["sessions"]), "session_id": session_id, "account_id": account_id, "created_at": _now()}
+        data["sessions"].append(row); _save(data); return _object(row)
 
 
-def get_user_by_session_id(session_id):
-    """Get user by session ID."""
-    try:
-        return User.query.filter_by(session_id=session_id).first()
-    except SQLAlchemyError as e:
-        logger.error(f"Error retrieving user: {e}")
-        return None
+def get_user_by_session_id(session_id): return _object(_row(_load()["sessions"], "session_id", session_id))
+def get_user_for_account(session_id, account_id):
+    user = get_user_by_session_id(session_id)
+    return user if user and str(user.account_id) == str(account_id) else None
 
 
 def save_conversation(user_id, user_message, bot_response, intent, confidence, engine, model):
-    """Save a conversation to the database."""
-    try:
-        conversation = Conversation(
-            user_id=user_id,
-            user_message=user_message,
-            bot_response=bot_response,
-            intent=intent,
-            confidence=confidence,
-            engine=engine,
-            model=model
-        )
-        db.session.add(conversation)
-        db.session.commit()
-        logger.info(f"Saved conversation for user {user_id}")
-        return conversation
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error(f"Error saving conversation: {e}")
-        return None
+    with _LOCK:
+        data = _load(); row = {"id": _next(data["conversations"]), "user_id": user_id, "user_message": user_message, "bot_response": bot_response, "intent": intent, "confidence": confidence, "engine": engine, "model": model, "timestamp": _now()}
+        data["conversations"].append(row); _save(data); return _object(row)
 
 
 def get_conversation_history(user_id, limit=28):
-    """Get conversation history for a user."""
-    try:
-        conversations = Conversation.query.filter_by(user_id=user_id).order_by(
-            Conversation.timestamp.desc()
-        ).limit(limit).all()
-        return sorted(conversations, key=lambda x: x.timestamp)
-    except SQLAlchemyError as e:
-        logger.error(f"Error retrieving conversation history: {e}")
-        return []
-
-
-def save_intent(tag, patterns, responses):
-    """Save an intent to the database."""
-    try:
-        intent = Intent.query.filter_by(tag=tag).first()
-        if intent:
-            intent.patterns = patterns
-            intent.responses = responses
-        else:
-            intent = Intent(tag=tag, patterns=patterns, responses=responses)
-            db.session.add(intent)
-        db.session.commit()
-        logger.info(f"Saved intent: {tag}")
-        return intent
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error(f"Error saving intent: {e}")
-        return None
-
-
-def get_all_intents():
-    """Get all intents from database."""
-    try:
-        intents = Intent.query.all()
-        return [{
-            'tag': intent.tag,
-            'patterns': intent.patterns,
-            'responses': intent.responses
-        } for intent in intents]
-    except SQLAlchemyError as e:
-        logger.error(f"Error retrieving intents: {e}")
-        return []
-
-
-def save_model_metadata(model_name, version, intents_count, training_samples, accuracy):
-    """Save model metadata."""
-    try:
-        metadata = ModelMetadata(
-            model_name=model_name,
-            version=version,
-            intents_count=intents_count,
-            training_samples=training_samples,
-            accuracy=accuracy
-        )
-        db.session.add(metadata)
-        db.session.commit()
-        logger.info(f"Saved model metadata: {model_name}")
-        return metadata
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error(f"Error saving model metadata: {e}")
-        return None
-
-
-def get_model_metadata(model_name):
-    """Get model metadata."""
-    try:
-        return ModelMetadata.query.filter_by(model_name=model_name).order_by(
-            ModelMetadata.trained_at.desc()
-        ).first()
-    except SQLAlchemyError as e:
-        logger.error(f"Error retrieving model metadata: {e}")
-        return None
+    return [_object(row) for row in [item for item in _load()["conversations"] if str(item["user_id"]) == str(user_id)][-limit:]]
 
 
 def clear_user_session(session_id, account_id=None):
-    """Clear a chat session and its conversations."""
-    try:
-        user = User.query.filter_by(session_id=session_id).first()
-        if not user:
-            return False
-        if account_id is not None and user.account_id != account_id:
-            return False
-
-        Conversation.query.filter_by(user_id=user.id).delete()
-        db.session.delete(user)
-        db.session.commit()
-        logger.info("Cleared session: %s", session_id)
-        return True
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error("Error clearing session: %s", e)
-        return False
+    with _LOCK:
+        data = _load(); user = _row(data["sessions"], "session_id", session_id)
+        if not user or (account_id is not None and str(user["account_id"]) != str(account_id)): return False
+        data["sessions"] = [item for item in data["sessions"] if item["session_id"] != session_id]
+        data["conversations"] = [item for item in data["conversations"] if item["user_id"] != user["id"]]
+        _save(data); return True
 
 
-def get_user_for_account(session_id, account_id):
-    """Return a chat session if it belongs to the authenticated account."""
-    try:
-        user = User.query.filter_by(session_id=session_id).first()
-        if not user:
-            return None
-        if user.account_id != account_id:
-            return None
-        return user
-    except SQLAlchemyError as e:
-        logger.error("Error retrieving account session: %s", e)
-        return None
+def save_intent(tag, patterns, responses):
+    with _LOCK:
+        data = _load(); data["intents"] = [item for item in data["intents"] if item["tag"] != tag]
+        row = {"tag": tag, "patterns": patterns, "responses": responses}; data["intents"].append(row); _save(data); return _object(row)
+def get_all_intents(): return _load()["intents"]
+def save_model_metadata(model_name, version, intents_count, training_samples, accuracy):
+    with _LOCK:
+        data = _load(); row = {"model_name": model_name, "version": version, "intents_count": intents_count, "training_samples": training_samples, "accuracy": accuracy, "trained_at": _now()}
+        data["model_metadata"].append(row); _save(data); return _object(row)
+def get_model_metadata(model_name):
+    rows = [item for item in _load()["model_metadata"] if item["model_name"] == model_name]
+    return _object(rows[-1]) if rows else None

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Code2, Copy } from 'lucide-react';
+import { Check, Code2, Copy, ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
 import { copyText } from './clipboard';
 import { parseMessageContent } from './messageContent';
 
@@ -38,21 +38,41 @@ function CodeBlock({ language, content, blockId }) {
   );
 }
 
-function MessageContent({ text, messageId }) {
+function MessageContent({ text, messageId, citations = [], confidence, onFeedback, routing, citationVerified, sourceConflicts = [] }) {
   const parts = parseMessageContent(text);
+  const [feedback, setFeedback] = useState(null);
+
+  const submitFeedback = async (helpful) => {
+    setFeedback(helpful);
+    await onFeedback?.(helpful);
+  };
+
+  const feedbackControls = (
+    <div className="message-output-toolbar">
+      <button type="button" className="icon-button" title="Read aloud" aria-label="Read aloud" onClick={() => speak(text)}><Volume2 size={15} /></button>
+      <button type="button" className={`icon-button${feedback === true ? ' active' : ''}`} title="Helpful" aria-label="Helpful" onClick={() => submitFeedback(true)}><ThumbsUp size={15} /></button>
+      <button type="button" className={`icon-button${feedback === false ? ' danger' : ''}`} title="Needs improvement" aria-label="Needs improvement" onClick={() => submitFeedback(false)}><ThumbsDown size={15} /></button>
+    </div>
+  );
 
   if (parts.length === 1 && parts[0].type === 'text') {
-    return <div className="message-bubble">{parts[0].content}</div>;
+    return (
+      <>
+        {feedbackControls}
+        <RichText content={parts[0].content} />
+        {citations.length > 0 ? <CitationList citations={citations} confidence={confidence} /> : null}
+        <TrustInfo routing={routing} citationVerified={citationVerified} sourceConflicts={sourceConflicts} />
+      </>
+    );
   }
 
   return (
     <div className="message-content">
+      {feedbackControls}
       {parts.map((part, index) => {
         if (part.type === 'text') {
           return (
-            <div key={`${messageId}-text-${index}`} className="message-bubble message-bubble-text">
-              {part.content}
-            </div>
+            <RichText key={`${messageId}-text-${index}`} content={part.content} />
           );
         }
 
@@ -65,7 +85,59 @@ function MessageContent({ text, messageId }) {
           />
         );
       })}
+      {citations.length > 0 ? <CitationList citations={citations} confidence={confidence} /> : null}
+      <TrustInfo routing={routing} citationVerified={citationVerified} sourceConflicts={sourceConflicts} />
     </div>
+  );
+}
+
+function TrustInfo({ routing, citationVerified, sourceConflicts }) {
+  if (!routing && citationVerified === undefined && !sourceConflicts.length) return null;
+  return <p className="trust-info">
+    {routing?.reason ? `Route: ${routing.reason} ` : ''}
+    {citationVerified === true ? 'Citations verified. ' : citationVerified === false ? 'No inline citations detected. ' : ''}
+    {sourceConflicts.length ? `Possible source conflicts: ${sourceConflicts.length}.` : ''}
+  </p>;
+}
+
+function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+function RichText({ content }) {
+  const imageUrls = Array.from(content.matchAll(/https?:\/\/[^\s)]+\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?/gi)).map((match) => match[0]);
+  const tableLines = content.split('\n').filter((line) => /^\|.+\|\s*$/.test(line));
+  const table = tableLines.length >= 2
+    ? tableLines.filter((line) => !/^\|?\s*:?-{3,}/.test(line)).map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    : null;
+  const displayText = content.split('\n').filter((line) => !tableLines.includes(line)).join('\n').trim();
+
+  return (
+    <div className="message-bubble message-bubble-text">
+      {displayText ? <span>{displayText}</span> : null}
+      {table ? (
+        <div className="markdown-table-wrap"><table><tbody>{table.map((row, index) => (
+          <tr key={index}>{row.map((cell, cellIndex) => index === 0 ? <th key={cellIndex}>{cell}</th> : <td key={cellIndex}>{cell}</td>)}</tr>
+        ))}</tbody></table></div>
+      ) : null}
+      {imageUrls.map((url) => <img className="message-image" key={url} src={url} alt="Preview shared in chat" loading="lazy" />)}
+    </div>
+  );
+}
+
+function CitationList({ citations, confidence }) {
+  return (
+    <section className="citation-list" aria-label="Sources">
+      <strong>Sources{typeof confidence === 'number' ? ` · retrieval confidence ${Math.round(confidence * 100)}%` : ''}</strong>
+      {citations.map((citation) => (
+        <details key={`${citation.source}-${citation.chunk_id}`}>
+          <summary>[{citation.index}] {citation.source}{citation.page ? ` · page ${citation.page}` : ''}</summary>
+          <p>{citation.excerpt}</p>
+        </details>
+      ))}
+    </section>
   );
 }
 

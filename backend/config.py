@@ -1,4 +1,4 @@
-"""Database configuration for the chatbot."""
+"""Flask configuration for the local, ChromaDB-enabled chatbot."""
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -11,28 +11,13 @@ class Config:
     TESTING = False
     BOT_NAME = os.getenv("BOT_NAME", "Nexus")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
+    RAG_ADMIN_EMAILS = os.getenv("RAG_ADMIN_EMAILS", "")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_HTTPONLY = True
 
 class DevelopmentConfig(Config):
     """Development configuration."""
-    # MySQL Configuration via XAMPP
-    MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
-    MYSQL_USER = os.getenv("MYSQL_USER", "root")
-    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
-    MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "ai_chatbot")
-    MYSQL_PORT = int(os.getenv("MYSQL_PORT", 3306))
-    
-    # SQLAlchemy Configuration
-    SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}?charset=utf8mb4"
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 10,
-        'pool_recycle': 3600,
-        'pool_pre_ping': True,
-    }
-    
     # Flask-SocketIO Configuration
     SOCKETIO_ASYNC_MODE = 'threading'
     
@@ -54,7 +39,6 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     """Testing configuration."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
 
 config = {
     'development': DevelopmentConfig,

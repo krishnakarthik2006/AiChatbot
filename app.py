@@ -1,4 +1,4 @@
-"""Real-time Flask chatbot with WebSocket support and MySQL backend."""
+"""Real-time Flask chatbot with WebSocket support and local file persistence."""
 import os
 import logging
 from uuid import uuid4
@@ -17,7 +17,6 @@ except ImportError:
 
 from chatbot import Chatbot
 from backend.config import get_config
-from backend.models import db
 from backend.auth import init_auth
 from backend.database import (
     init_db, get_user_by_session_id, create_user_session,
@@ -38,7 +37,6 @@ config = get_config()
 app.config.from_object(config)
 
 # Initialize extensions
-db.init_app(app)
 init_auth(app)
 if CORS:
     CORS(
@@ -56,15 +54,12 @@ active_sessions = {}
 SESSION_COOKIE_NAME = 'nexus_session_id'
 
 
-def get_or_create_user(session_id, account_id):
+def get_or_create_user(session_id, account_id=None):
     """Return the chat session for an authenticated account, creating it if needed."""
     user = get_user_by_session_id(session_id)
     if user:
-        if user.account_id and user.account_id != account_id:
+        if account_id is not None and user.account_id is not None and str(user.account_id) != str(account_id):
             return None
-        if not user.account_id:
-            user.account_id = account_id
-            db.session.commit()
         return user
     return create_user_session(session_id, account_id=account_id)
 
@@ -83,7 +78,7 @@ def build_history(user, limit):
 
 
 def serialize_conversation_history(user, limit=50):
-    """Return database conversations in the message shape used by the React UI."""
+    """Return locally persisted conversations in the message shape used by the React UI."""
     if not user:
         return []
 
@@ -93,13 +88,13 @@ def serialize_conversation_history(user, limit=50):
             'id': f'{conv.id}-user',
             'sender': 'user',
             'text': conv.user_message,
-            'timestamp': conv.timestamp.isoformat()
+            'timestamp': conv.timestamp
         })
         messages.append({
             'id': f'{conv.id}-bot',
             'sender': 'bot',
             'text': conv.bot_response,
-            'timestamp': conv.timestamp.isoformat(),
+            'timestamp': conv.timestamp,
             'meta': {
                 'engine': conv.engine,
                 'intent': conv.intent,
@@ -111,7 +106,7 @@ def serialize_conversation_history(user, limit=50):
 
 
 def set_session_cookie(response, session_id):
-    """Attach the current database session id as an HTTP-only browser cookie."""
+    """Attach the current local session id as an HTTP-only browser cookie."""
     response.set_cookie(
         SESSION_COOKIE_NAME,
         session_id,
@@ -123,7 +118,7 @@ def set_session_cookie(response, session_id):
 
 
 def save_chat_result(user, user_message, result):
-    """Persist a user turn and the chatbot response when a user record exists."""
+    """Persist a user turn and the chatbot response in the local store."""
     if not user:
         return
 
@@ -152,7 +147,7 @@ def websocket_response(result):
 
 @app.before_request
 def setup():
-    """Initialize database before first request."""
+    """Initialize the local file store before first request."""
     if not hasattr(app, 'db_initialized'):
         with app.app_context():
             init_db(app)
@@ -177,14 +172,14 @@ def health():
         'local_llm': status['local_llm'],
         'active_sessions': len(active_sessions),
         'nlp_engine': 'NLTK+Scikit-learn',
-        'database': 'MySQL',
+        'storage': 'local JSON + ChromaDB',
     })
 
 
 @app.route('/api/session', methods=['GET', 'POST', 'DELETE'])
 @login_required
 def session_http():
-    """Create or return the browser's current database-backed chat session."""
+    """Create or return the browser's current local chat session."""
     account_id = current_user.id
     data = request.get_json(silent=True) or {}
     existing_session_id = data.get('session_id') or request.cookies.get(SESSION_COOKIE_NAME)
@@ -212,7 +207,7 @@ def session_http():
         user = get_or_create_user(session_id, account_id)
 
     if not user:
-        return jsonify({'error': 'Could not create database session'}), 500
+        return jsonify({'error': 'Could not create local chat session'}), 500
 
     response = jsonify({
         'session_id': session_id,

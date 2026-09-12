@@ -3,6 +3,9 @@ import {
   Bot,
   Check,
   Copy,
+  Cpu,
+  Database,
+  Download,
   LogOut,
   MessageSquare,
   Mic,
@@ -11,18 +14,31 @@ import {
   RotateCcw,
   Send,
   Settings,
+  ShieldCheck,
+  Square,
+  Sun,
+  Moon,
   User,
 } from 'lucide-react';
-import { apiRequest, BACKEND_URL } from './api';
+import { apiRequest, BACKEND_URL, RAG_BACKEND_URL, ragApiRequest, ragApiStream } from './api';
 import AuthPage from './AuthPage';
 import { useAuth } from './AuthContext';
 import { copyText } from './clipboard';
 import MessageContent from './MessageContent.jsx';
+import DocumentManager from './DocumentManager.jsx';
+import AdminPanel from './AdminPanel.jsx';
+import AdvancedPanel from './AdvancedPanel.jsx';
+import NotificationCenter from './NotificationCenter.jsx';
 
 const modeOptions = [
   { value: 'balanced', label: 'Balanced' },
   { value: 'precise', label: 'Precise' },
   { value: 'creative', label: 'Creative' },
+];
+
+const engineOptions = [
+  { value: 'local', label: 'Local assistant' },
+  { value: 'rag', label: 'ai_chatbot RAG' },
 ];
 
 const starterPrompts = [
@@ -66,18 +82,31 @@ const formatHistoryDate = (isoDate) => {
     : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
+const createMessageId = () => `${crypto.randomUUID()}`;
+
 function App() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState('balanced');
+  const [engine, setEngine] = useState('local');
+  const [responseLanguage, setResponseLanguage] = useState('Same language as question');
+  const [webFallback, setWebFallback] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('ai_chatbot_theme') || 'light');
   const [isLoading, setIsLoading] = useState(false);
   const [health, setHealth] = useState(null);
+  const [ragHealth, setRagHealth] = useState(null);
   const [sessionId, setSessionId] = useState('');
   const [statusMessage, setStatusMessage] = useState('Checking backend');
   const [chatHistory, setChatHistory] = useState([]);
+  const [historyQuery, setHistoryQuery] = useState('');
   const [activeHistoryId, setActiveHistoryId] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [documentsOpen, setDocumentsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [composerCopyActive, setComposerCopyActive] = useState(false);
@@ -85,13 +114,17 @@ function App() {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const requestControllerRef = useRef(null);
 
   useEffect(() => {
-    if (!user?.id) {
-      setChatHistory([]);
-      return;
-    }
-    setChatHistory(loadStoredChatHistory(user.id));
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('ai_chatbot_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const updateHistory = () => setChatHistory(user?.id ? loadStoredChatHistory(user.id) : []);
+    const timer = window.setTimeout(updateHistory, 0);
+    return () => window.clearTimeout(timer);
   }, [user?.id]);
 
   const ensureSession = async (signal) => {
@@ -107,7 +140,7 @@ function App() {
       return newId;
     } catch (error) {
       if (error.name !== 'AbortError') {
-        setStatusMessage('Could not create session. Check backend and database.');
+        setStatusMessage('Could not create session. Check the backend and local storage.');
       }
       return '';
     }
@@ -171,6 +204,19 @@ function App() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${RAG_BACKEND_URL}/api/health`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!controller.signal.aborted) setRagHealth(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setRagHealth(null);
+      });
+    return () => controller.abort();
+  }, []);
+
   const persistChatHistory = (entries) => {
     if (!user?.id) return;
     setChatHistory(entries);
@@ -206,6 +252,27 @@ function App() {
     setStatusMessage('Viewing saved chat');
   };
 
+  const renameHistory = (chat) => {
+    const title = window.prompt('Conversation title', chat.title)?.trim();
+    if (!title) return;
+    persistChatHistory(chatHistory.map((item) => (item.id === chat.id ? { ...item, title } : item)));
+  };
+
+  const deleteHistory = (chat) => {
+    if (!window.confirm(`Delete “${chat.title}”?`)) return;
+    persistChatHistory(chatHistory.filter((item) => item.id !== chat.id));
+    if (activeHistoryId === chat.id) setActiveHistoryId(null);
+  };
+
+  const exportConversation = (chat = null) => {
+    const payload = chat || { title: 'Current conversation', messages };
+    const file = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(file);
+    const link = Object.assign(document.createElement('a'), { href: url, download: 'ai_chatbot-conversation.json' });
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const resetConversation = async () => {
     if (isLoading) return;
 
@@ -236,7 +303,7 @@ function App() {
 
     // Auto-create a session if one doesn't exist yet
     let activeSessionId = sessionId;
-    if (!activeSessionId) {
+    if (engine !== 'rag' && !activeSessionId) {
       setIsLoading(true);
       activeSessionId = await ensureSession();
       if (!activeSessionId) {
@@ -266,14 +333,42 @@ function App() {
     setStatusMessage('Thinking...');
 
     try {
+      const ragHistory = messages.slice(-6).map((message) => ({
+        role: message.sender === 'bot' ? 'assistant' : 'user',
+        content: message.text,
+      }));
+      if (engine === 'rag') {
+        const messageId = createMessageId();
+        appendMessage({ sender: 'bot', text: '', id: messageId, meta: { engine: 'rag', citations: [] } });
+        const controller = new AbortController();
+        requestControllerRef.current = controller;
+        await ragApiStream('/api/chat/stream', {
+          method: 'POST', signal: controller.signal,
+                body: JSON.stringify({ message: userText, history: ragHistory, language: responseLanguage, use_web_fallback: webFallback, privacy_mode: privacyMode, workspace_id: activeWorkspace?.id }),
+        }, (event) => {
+          if (event.type === 'delta') {
+            setMessages((previous) => previous.map((item) => item.id === messageId ? { ...item, text: `${item.text}${event.text}` } : item));
+          }
+          if (event.type === 'complete') {
+            setMessages((previous) => previous.map((item) => item.id === messageId ? {
+              ...item,
+              meta: { ...item.meta, ...event.meta, citations: event.meta.citations || [], retrievalConfidence: event.meta.confidence },
+            } : item));
+          }
+          if (event.type === 'error') throw new Error(event.message);
+        });
+        requestControllerRef.current = null;
+        setStatusMessage('Ready');
+        return;
+      }
       const data = await apiRequest('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: userText,
-          session_id: activeSessionId,
-          mode,
-        }),
-      });
+            method: 'POST',
+            body: JSON.stringify({
+              message: userText,
+              session_id: activeSessionId,
+              mode,
+            }),
+          });
 
       appendMessage({
         sender: 'bot',
@@ -284,10 +379,16 @@ function App() {
           confidence: data.confidence,
           model: data.model,
           understood: data.understood,
+          citations: data.citations || [],
+          retrievalConfidence: data.confidence,
+          routing: data.routing,
+          citationVerified: data.citation_verified,
+          sourceConflicts: data.source_conflicts || [],
         },
       });
       setStatusMessage('Ready');
     } catch (error) {
+      if (error.name === 'AbortError') return;
       const backendMessage = error.data?.error || error.message || 'Unable to reach the backend.';
       appendMessage({
         sender: 'bot',
@@ -304,8 +405,39 @@ function App() {
     }
   };
 
+  const stopGeneration = () => {
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    setIsLoading(false);
+    setStatusMessage('Generation stopped');
+  };
+
   const handleStarterPrompt = (prompt) => {
     handleSend(prompt);
+  };
+
+  const addDocumentAnswer = (data, question) => {
+    appendMessage({ sender: 'user', text: question });
+    appendMessage({ sender: 'bot', text: data.response || '(No response generated)', meta: {
+      engine: data.engine, citations: data.citations || [], retrievalConfidence: data.confidence, model: data.model,
+    } });
+  };
+
+  const addAgentResult = (text) => appendMessage({ sender: 'bot', text, meta: { engine: 'agent' } });
+
+  const recordFeedback = async (message, helpful) => {
+    if (message.meta?.engine !== 'rag') return;
+    const index = messages.findIndex((item) => item.id === message.id);
+    const question = messages.slice(0, index).reverse().find((item) => item.sender === 'user')?.text || '';
+    try {
+      await ragApiRequest('/api/feedback', {
+        method: 'POST',
+        body: JSON.stringify({ message_id: String(message.id), helpful, question, response: message.text }),
+      });
+      setStatusMessage(helpful ? 'Thanks for the feedback' : 'Marked for review');
+    } catch (error) {
+      setStatusMessage(error.message);
+    }
   };
 
   const handleLogout = async () => {
@@ -429,7 +561,7 @@ function App() {
     setStatusMessage('Nothing to clear');
   };
 
-  useEffect(() => () => recognitionRef.current?.stop(), []);
+  useEffect(() => () => { recognitionRef.current?.stop(); requestControllerRef.current?.abort(); }, []);
 
   if (authLoading) {
     return <div className="auth-shell"><div className="auth-loading">Loading...</div></div>;
@@ -441,11 +573,16 @@ function App() {
 
   const displayName = user?.display_name || user?.email || 'User';
   const localModel = health?.local_llm || {};
-  const assistantReady = Boolean(localModel.available && localModel.model_ready);
-  const statusLabel = health ? (assistantReady ? 'Ready' : 'Offline') : statusMessage;
+  const assistantReady = engine === 'rag'
+    ? Boolean(ragHealth?.rag?.available)
+    : Boolean(localModel.available && localModel.model_ready);
+  const statusLabel = engine === 'rag'
+    ? (assistantReady ? 'RAG ready' : 'RAG API offline')
+    : (health ? (assistantReady ? 'Ready' : 'Offline') : statusMessage);
 
   return (
     <div className="page-shell">
+      <a className="skip-link" href="#chat-main">Skip to chat</a>
       <aside className="sidebar" aria-label="Workspace">
         <div className="brand-block">
           <span className="brand-mark">
@@ -464,6 +601,9 @@ function App() {
             onClick={() => {
               setProfileOpen((open) => !open);
               setSettingsOpen(false);
+              setDocumentsOpen(false);
+              setAdminOpen(false);
+              setAdvancedOpen(false);
             }}
             aria-label="Profile"
             aria-expanded={profileOpen}
@@ -478,6 +618,9 @@ function App() {
             onClick={() => {
               setSettingsOpen((open) => !open);
               setProfileOpen(false);
+              setDocumentsOpen(false);
+              setAdminOpen(false);
+              setAdvancedOpen(false);
             }}
             aria-label="Settings"
             aria-expanded={settingsOpen}
@@ -508,6 +651,38 @@ function App() {
         {settingsOpen ? (
           <div className="settings-panel" role="region" aria-label="Settings">
             <label className="settings-field">
+              <span>Response language</span>
+              <select value={responseLanguage} onChange={(event) => setResponseLanguage(event.target.value)} className="select-field">
+                <option>Same language as question</option><option>English</option><option>Hindi</option><option>Tamil</option><option>Telugu</option>
+              </select>
+            </label>
+            <label className="settings-field checkbox-field">
+              <input type="checkbox" checked={webFallback} onChange={(event) => setWebFallback(event.target.checked)} />
+              <span>Use cited web fallback when documents have no answer</span>
+            </label>
+            <label className="settings-field">
+              <span>Appearance</span>
+              <button className="secondary-button" type="button" onClick={() => setTheme((value) => value === 'light' ? 'dark' : 'light')}>
+                {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+                {theme === 'light' ? 'Dark theme' : 'Light theme'}
+              </button>
+            </label>
+            <label className="settings-field">
+              <span>Assistant engine</span>
+              <select
+                value={engine}
+                onChange={(event) => setEngine(event.target.value)}
+                className="select-field"
+                aria-label="Assistant engine"
+              >
+                {engineOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="settings-field">
               <span>Response mode</span>
               <select
                 value={mode}
@@ -525,8 +700,16 @@ function App() {
           </div>
         ) : null}
 
+        {documentsOpen ? <DocumentManager onClose={() => setDocumentsOpen(false)} onDocumentAnswer={addDocumentAnswer} /> : null}
+        {adminOpen && user?.is_admin ? <AdminPanel onClose={() => setAdminOpen(false)} /> : null}
+        {advancedOpen ? <AdvancedPanel onClose={() => setAdvancedOpen(false)} privacyMode={privacyMode} setPrivacyMode={setPrivacyMode} onAgentResult={addAgentResult} onWorkspaceSelect={(workspace) => { setActiveWorkspace(workspace); setAdvancedOpen(false); }} onPromptSelected={(text) => { setInputValue(text); setAdvancedOpen(false); }} /> : null}
+
         <section className="history-section" aria-label="Chat history">
-          <h2 className="history-heading">Chat history</h2>
+          <div className="history-heading-row">
+            <h2 className="history-heading">Chat history</h2>
+            <button className="icon-button" type="button" title="Export current chat" aria-label="Export current chat" onClick={() => exportConversation()}><Download size={15} /></button>
+          </div>
+          <input className="history-search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search chats" aria-label="Search chats" />
 
           <div className="history-list">
             {!activeHistoryId && messages.length > 0 ? (
@@ -546,19 +729,16 @@ function App() {
             {chatHistory.length === 0 && (activeHistoryId || messages.length === 0) ? (
               <p className="history-empty">No previous chats yet</p>
             ) : (
-              chatHistory.map((chat) => (
-                <button
-                  key={chat.id}
-                  type="button"
-                  className={`history-item${activeHistoryId === chat.id ? ' active' : ''}`}
-                  onClick={() => loadHistoryChat(chat)}
-                >
-                  <MessageSquare size={16} />
-                  <span className="history-item-text">
-                    <strong>{chat.title}</strong>
-                    <small>{formatHistoryDate(chat.updatedAt)}</small>
-                  </span>
-                </button>
+              chatHistory.filter((chat) => chat.title.toLowerCase().includes(historyQuery.toLowerCase())).map((chat) => (
+                <div className={`history-item-row${activeHistoryId === chat.id ? ' active' : ''}`} key={chat.id}>
+                  <button type="button" className="history-item" onClick={() => loadHistoryChat(chat)}>
+                    <MessageSquare size={16} />
+                    <span className="history-item-text"><strong>{chat.title}</strong><small>{formatHistoryDate(chat.updatedAt)}</small></span>
+                  </button>
+                  <button type="button" className="history-mini-action" title="Rename" onClick={() => renameHistory(chat)}>✎</button>
+                  <button type="button" className="history-mini-action" title="Export" onClick={() => exportConversation(chat)}><Download size={13} /></button>
+                  <button type="button" className="history-mini-action danger" title="Delete" onClick={() => deleteHistory(chat)}>×</button>
+                </div>
               ))
             )}
           </div>
@@ -568,14 +748,26 @@ function App() {
           <Plus size={16} />
           New chat
         </button>
+        <button
+          className="secondary-button full-width"
+          onClick={() => { setDocumentsOpen((open) => !open); setSettingsOpen(false); setProfileOpen(false); setAdminOpen(false); setAdvancedOpen(false); }}
+          type="button"
+        >
+          <Database size={16} />
+          Documents
+        </button>
+        {user?.is_admin ? <button className="secondary-button full-width" onClick={() => { setAdminOpen((open) => !open); setDocumentsOpen(false); setAdvancedOpen(false); }} type="button"><ShieldCheck size={16} /> Admin</button> : null}
+        <button className="secondary-button full-width" onClick={() => { setAdvancedOpen((open) => !open); setDocumentsOpen(false); setAdminOpen(false); }} type="button"><Cpu size={16} /> Advanced</button>
       </aside>
 
-      <main className="chat-panel">
+      <main id="chat-main" className="chat-panel" tabIndex="-1">
         <header className="panel-header">
           <div>
-            <span className="panel-eyebrow">Workspace</span>
-            <h2>{activeHistoryId ? 'Saved chat' : 'Chat'}</h2>
+            <span className="panel-eyebrow">{engine === 'rag' ? 'ai_chatbot knowledge base' : 'Workspace'}</span>
+            <h2>{activeHistoryId ? 'Saved chat' : engine === 'rag' ? 'RAG chat' : 'Chat'}</h2>
+            {activeWorkspace ? <small className="workspace-active">Shared workspace: {activeWorkspace.name} <button type="button" onClick={() => setActiveWorkspace(null)}>Leave</button></small> : null}
           </div>
+          <NotificationCenter />
           <div className={`status-pill${assistantReady ? ' online' : ' offline'}`}>
             <span className="status-dot" />
             <span>{statusLabel}</span>
@@ -605,7 +797,16 @@ function App() {
                 </div>
 
                 {message.sender === 'bot' ? (
-                  <MessageContent text={message.text} messageId={message.id} />
+                  <MessageContent
+                    text={message.text}
+                    messageId={message.id}
+                    citations={message.meta?.citations}
+                    confidence={message.meta?.retrievalConfidence}
+                    routing={message.meta?.routing}
+                    citationVerified={message.meta?.citationVerified}
+                    sourceConflicts={message.meta?.sourceConflicts}
+                    onFeedback={(helpful) => recordFeedback(message, helpful)}
+                  />
                 ) : (
                   <div className="message-bubble">{message.text}</div>
                 )}
@@ -729,6 +930,9 @@ function App() {
               <Send size={16} />
               Send
             </button>
+            {isLoading && engine === 'rag' ? (
+              <button className="icon-button danger" onClick={stopGeneration} type="button" aria-label="Stop generation" title="Stop generation"><Square size={15} /></button>
+            ) : null}
           </div>
 
           <div className="composer-hint" aria-hidden="true">

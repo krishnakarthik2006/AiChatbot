@@ -2,11 +2,11 @@
 import logging
 import re
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
+from itsdangerous import URLSafeTimedSerializer
 
-from backend.database import create_account, get_account_by_email
-from backend.models import Account, db
+from backend.database import create_account, get_account_by_email, get_account_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def init_auth(app):
 
     @login_manager.user_loader
     def load_user(account_id):
-        return Account.query.get(int(account_id))
+        return get_account_by_id(account_id)
 
     @login_manager.unauthorized_handler
     def unauthorized():
@@ -37,8 +37,18 @@ def account_payload(account):
     """Serialize an account for API responses."""
     return {
         'authenticated': True,
-        'user': account.to_dict(),
+        'user': {**account.to_dict(), 'is_admin': is_admin(account)},
     }
+
+
+def is_admin(account):
+    """Keep admin access explicit and configurable without storing role data in the client."""
+    allowed = {
+        email.strip().lower()
+        for email in current_app.config.get('RAG_ADMIN_EMAILS', '').split(',')
+        if email.strip()
+    }
+    return account.email.lower() in allowed
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -100,3 +110,16 @@ def me():
     if current_user.is_authenticated:
         return jsonify(account_payload(current_user))
     return jsonify({'authenticated': False}), 401
+
+
+@auth_bp.route('/rag-token', methods=['POST'])
+@login_required
+def rag_token():
+    """Issue a short-lived signed identity token for the separate FastAPI RAG service."""
+    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'], salt='ai-chatbot-rag')
+    token = serializer.dumps({
+        'account_id': str(current_user.id),
+        'email': current_user.email,
+        'is_admin': is_admin(current_user),
+    })
+    return jsonify({'token': token, 'expires_in': 3600})

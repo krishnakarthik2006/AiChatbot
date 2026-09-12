@@ -1,4 +1,4 @@
-"""Enhanced Chatbot with NLTK NLP and database integration."""
+"""Enhanced Chatbot with NLTK NLP and local persistence support."""
 from __future__ import annotations
 
 import ast

@@ -1,6 +1,7 @@
 """Real-time Flask chatbot with WebSocket support and local file persistence."""
 import os
 import logging
+import secrets
 from uuid import uuid4
 from flask import Flask, g, render_template, request, jsonify
 try:
@@ -21,7 +22,7 @@ from backend.auth import auth_required, init_auth
 from backend.database import (
     init_db, get_user_by_session_id, create_user_session,
     save_conversation, get_conversation_history, clear_user_session,
-    get_user_for_account,
+    get_user_for_account, create_share, get_share, list_shares, delete_share,
 )
 
 # Configure logging
@@ -180,6 +181,94 @@ def local_models_set():
     set_runtime_model(name or None)
     status = bot.local_llm.status(max_age=0)
     return jsonify({'current': runtime_model() or status.get('active_model'), 'model_ready': status.get('model_ready'), 'installed_models': status.get('installed_models', [])})
+
+
+def _share_title(text):
+    clean = (text or '').strip().replace('\r', ' ').replace('\n', ' ')
+    if not clean:
+        return 'Shared conversation'
+    title = clean if len(clean) <= 44 else f"{clean[:41].rstrip()}..."
+    return title[:1].upper() + title[1:]
+
+
+@app.route('/api/shares', methods=['POST'])
+@auth_required
+def create_share_link():
+    """Create a public read-only link to the current chat session."""
+    account_id = g.account.id
+    data = request.get_json(silent=True) or {}
+    session_id = data.get('session_id') or request.cookies.get(SESSION_COOKIE_NAME)
+    user = get_user_for_account(session_id, account_id) if session_id else None
+    if not user:
+        return jsonify({'error': 'No chat session to share'}), 400
+    conversations = get_conversation_history(user.id, limit=200)
+    if not conversations:
+        return jsonify({'error': 'There are no messages to share yet'}), 400
+    messages = []
+    for conv in conversations:
+        if conv.user_message:
+            messages.append({'sender': 'user', 'text': conv.user_message, 'timestamp': conv.timestamp})
+        if conv.bot_response:
+            messages.append({'sender': 'bot', 'text': conv.bot_response, 'timestamp': conv.timestamp})
+    title = _share_title(messages[0]['text'] if messages else '')
+    token = secrets.token_urlsafe(16)
+    share = create_share(token, account_id, session_id, title, messages)
+    return jsonify({
+        'share': {
+            'token': share.token,
+            'url': f"/share/{share.token}",
+            'title': share.title,
+            'created_at': share.created_at,
+            'message_count': len(share.messages),
+        }
+    }), 201
+
+
+@app.route('/api/shares', methods=['GET'])
+@auth_required
+def list_share_links():
+    """List the current account's public share links."""
+    return jsonify({
+        'shares': [
+            {
+                'token': item['token'],
+                'url': f"/share/{item['token']}",
+                'title': item['title'],
+                'created_at': item['created_at'],
+                'message_count': len(item['messages']),
+            }
+            for item in list_shares(g.account.id)
+        ]
+    })
+
+
+@app.route('/api/shares/<token>', methods=['DELETE'])
+@auth_required
+def delete_share_link(token):
+    """Revoke a public share link (owner only)."""
+    if delete_share(token, account_id=g.account.id):
+        return jsonify({'status': 'removed'})
+    return jsonify({'error': 'Share not found'}), 404
+
+
+@app.route('/api/share/<token>', methods=['GET'])
+def get_share_public(token):
+    """Public read-only snapshot of a shared conversation (no auth)."""
+    share = get_share(token)
+    if not share:
+        return jsonify({'error': 'Shared conversation not found'}), 404
+    return jsonify({
+        'title': share.title,
+        'created_at': share.created_at,
+        'message_count': len(share.messages or []),
+        'messages': share.messages or [],
+    })
+
+
+@app.route('/share/<token>')
+def share_page(token):
+    """Serve the SPA shell so the browser app can render the public shared view."""
+    return render_template('index.html')
 
 
 @app.route('/api/health', methods=['GET'])

@@ -1370,3 +1370,39 @@ button {
     margin: 0;
   }
 }
+
+/* ---- Chat sharing ---- */
+.share-card { width: min(560px, calc(100vw - 32px)); display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-strong); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28); }
+.share-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.share-card-header strong { font-size: 15px; }
+.share-card-header .icon-button { min-height: 36px; min-width: 36px; }
+.share-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.share-link-row { display: flex; align-items: center; gap: 8px; }
+.share-link-input { flex: 1; min-width: 0; font-size: 13px; }
+.share-link-row .icon-button { min-height: 40px; min-width: 40px; flex-shrink: 0; }
+.share-open { min-height: 40px; white-space: nowrap; flex-shrink: 0; }
+.share-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.share-footer small { font-size: 11.5px; color: var(--muted); }
+.share-loading { margin: 0; color: var(--muted); font-size: 13px; }
+.share-error { margin: 0; color: var(--danger); font-size: 13px; }
+
+/* ---- Public shared-chat view (no auth) ---- */
+.shared-shell { min-height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 22px 16px 48px; background: var(--bg); }
+.shared-header { width: min(820px, 100%); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shared-back { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; font-size: 13.5px; color: var(--text); background: var(--surface-strong); border: 1px solid var(--line); border-radius: var(--radius-sm); text-decoration: none; }
+.shared-back:hover { border-color: var(--line-strong); }
+.shared-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); font-size: 14px; }
+.shared-brand svg { color: var(--accent); }
+.shared-card { width: min(820px, 100%); display: grid; gap: 4px; padding: 26px 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.shared-title-block { padding-bottom: 16px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.shared-title-block h1 { margin: 0 0 6px; font-size: 22px; line-height: 1.25; }
+.shared-title-block small { color: var(--muted); font-size: 12.5px; }
+.shared-messages { display: grid; gap: 20px; }
+.shared-messages .message-bubble { white-space: pre-wrap; }
+.shared-user-icon { display: inline-block; vertical-align: -2px; margin-right: 4px; opacity: 0.75; }
+.shared-status { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 0; color: var(--muted); font-size: 14px; }
+.shared-status.shared-error { color: var(--danger); }
+@media (max-width: 720px) {
+  .shared-card { padding: 20px 16px; }
+  .shared-header { flex-direction: column; align-items: flex-start; }
+}

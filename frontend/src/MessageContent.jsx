@@ -38,7 +38,7 @@ function CodeBlock({ language, content, blockId }) {
   );
 }
 
-function MessageContent({ text, messageId, citations = [], confidence, onFeedback, routing, citationVerified, sourceConflicts = [], voice }) {
+function MessageContent({ text, messageId, citations = [], confidence, onFeedback, routing, citationVerified, sourceConflicts = [], voice, readOnly = false }) {
   const parts = parseMessageContent(text);
   const [feedback, setFeedback] = useState(null);
 
@@ -47,7 +47,7 @@ function MessageContent({ text, messageId, citations = [], confidence, onFeedbac
     await onFeedback?.(helpful);
   };
 
-  const feedbackControls = (
+  const feedbackControls = readOnly ? null : (
     <div className="message-output-toolbar">
       <button type="button" className="icon-button" title="Read aloud" aria-label="Read aloud" onClick={() => speak(text, voice)}><Volume2 size={15} /></button>
       <button type="button" className={`icon-button${feedback === true ? ' active' : ''}`} title="Helpful" aria-label="Helpful" onClick={() => submitFeedback(true)}><ThumbsUp size={15} /></button>

@@ -23,6 +23,7 @@ This repository contains a private chatbot stack with a Flask + Socket.IO backen
 - **Auto-titles:** new conversations are titled automatically from the first user message.
 - **In-conversation search:** a search bar inside the transcript highlights matches and jumps through them.
 - **Markdown export:** download any conversation as a Markdown file (`FileDown` button or command palette).
+- **Chat sharing:** publish a read-only snapshot of the current conversation behind a public link (`Share` button). Anyone with the link can view it without logging in; the snapshot is fixed at creation and the owner can revoke the link at any time from the same dialog.
 - **Command palette (`Ctrl+K`):** jump to settings, export, undo, and more; `Esc` closes open panels/preview.
 - **Voice & language pickers:** browser speech-to-text (STT) with a selectable language, and text-to-speech (TTS) with a selectable voice for reading replies aloud.
 - **Image paste:** paste a screenshot into the composer to see an inline preview; the image is sent along and auto-described by an Ollama vision model.
@@ -54,7 +55,7 @@ This repository contains a private chatbot stack with a Flask + Socket.IO backen
 - **Fire-and-forget admin telemetry:** daily request metrics and a self-seeding storage-growth history are kept under `admin_data/`.
 - **Backup & restore:** download a JSON backup of all preferences plus the current account's chat history, and restore it later.
 - **Ollama model switcher:** pick which local model answers (`/api/local/models`), persisted at runtime in `.active_llm_model`.
-- A 32-case retrieval/robustness/security evaluation suite plus a **61-test pytest suite**.
+- A 32-case retrieval/robustness/security evaluation suite plus a **66-test pytest suite**.
 
 ## Project Structure
 
@@ -114,7 +115,7 @@ ai_chatbot/
 |-- documents/
 |   `-- README.md             # Where global source documents live
 |-- tests/
-|   `-- test_*.py             # pytest suite (61 tests)
+|   `-- test_*.py             # pytest suite (66 tests)
 |-- user_documents/           # Per-account encrypted uploads (runtime, gitignored)
 |-- chroma_db/                # ChromaDB persisted vectors (runtime)
 |-- knowledge_graph/          # Per-namespace entity graphs (runtime, gitignored)
@@ -420,6 +421,14 @@ Response modes: `balanced` (temperature 0.45), `precise` (0.2), `creative` (0.75
 - `GET` returns the Ollama server's `installed_models` and the currently chosen model.
 - `POST` with `{"model": "llama3.2:3b"}` switches the active local model for all subsequent local-engine requests. The choice is persisted at runtime in `.active_llm_model` so it survives restarts and is reflected in the UI's Settings panel.
 
+### Chat sharing
+
+- `POST /api/shares` (login required) - create a public read-only link to the current chat session; snapshots up to 200 stored messages (user + assistant turns) at creation time. Returns `share.token`, `share.url` (`/share/<token>`), `title`, `created_at`, `message_count`.
+- `GET /api/shares` (login required) - list the current account's share links.
+- `DELETE /api/shares/<token>` (login required) - revoke a link; only the owning account may revoke it.
+- `GET /api/share/<token>` (**no auth**) - public read-only snapshot: `title`, `created_at`, `message_count`, `messages`.
+- `GET /share/<token>` - serves the SPA shell for the read-only public view.
+
 ### Auth
 
 - `POST /api/auth/register` - create an account (email + password, min 8 chars); returns a JWT and sets the `access_token` cookie.
@@ -438,7 +447,7 @@ Response modes: `balanced` (temperature 0.45), `precise` (0.2), `creative` (0.75
 
 ## Storage Layout
 
-- `backend/local_store.json` - created automatically; stores accounts, authenticated chat sessions, conversation history, and optional intent/model metadata. Written atomically (temp file + replace).
+- `backend/local_store.json` - created automatically; stores accounts, authenticated chat sessions, conversation history, public share links, and optional intent/model metadata. Written atomically (temp file + replace).
 - `.jwt_blacklist.json` - file-backed registry of revoked JWT `jti` values with their expiry; expired entries are pruned on write.
 - `.active_llm_model` - the last model selected via the local model switcher.
 - `chroma_db/` - ChromaDB persisted vectors. One collection per namespace is created as `<CHROMA_COLLECTION>_<namespace>` (e.g. `ai_chatbot_knowledge_base_1` per account, `..._workspace_<id>` for workspaces).
@@ -450,13 +459,13 @@ Neither the JSON store nor the Chroma collections are shared between accounts: r
 
 ## Tests
 
-Run the pytest suite (61 tests) with:
+Run the pytest suite (66 tests) with:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-The suite covers the chat/auth/revocation flow (`test_auth_jwt.py` includes token lifetime, jti claims, and blacklist revocation), the RAG admin endpoints (quotas, anomalies, Chroma stats), RAG JWT auth through the FastAPI `TestClient` (`test_rag_auth_api.py`), the Ollama model switcher (`test_local_llm.py`), the `.env` placeholder check (`test_placeholder_check.py`), and the retrieval/quality paths (`test_rag_quality.py`).
+The suite covers the chat/auth/revocation flow (`test_auth_jwt.py` includes token lifetime, jti claims, and blacklist revocation), conversation sharing (`test_chat_sharing.py` covers create/list/public-get/revoke, owner-only deletion, and auth enforcement), the RAG admin endpoints (quotas, anomalies, Chroma stats), RAG JWT auth through the FastAPI `TestClient` (`test_rag_auth_api.py`), the Ollama model switcher (`test_local_llm.py`), the `.env` placeholder check (`test_placeholder_check.py`), and the retrieval/quality paths (`test_rag_quality.py`).
 
 The RAG evaluation suite (`rag/evaluation.py`, 32 cases) covers retrieval, robustness, chunk boundaries, document updates, contradictory documents, hallucinations, and security jailbreaks. Admin users can run retrieval evaluation live per account from the admin panel, and the tests exercise the guard checks.
 
@@ -516,7 +525,7 @@ The RAG API only accepts bearer tokens issued by `POST /api/auth/rag-token` (the
 - `python train_model.py` retrains the custom intent classifier.
 - `python cli.py` tests the chat pipeline without a browser.
 - `python setup.py` initializes the local store and trains intents.
-- `python -m pytest tests -q` runs the 61-test suite.
+- `python -m pytest tests -q` runs the 66-test suite.
 - Run `cd frontend; npm run lint; npm run build` before committing frontend changes.
 
 ## License

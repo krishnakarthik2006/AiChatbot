@@ -18,7 +18,7 @@ _LOCK = Lock()
 
 
 def _path(): return Path(__file__).resolve().parent / "local_store.json"
-def _empty(): return {"accounts": [], "sessions": [], "conversations": [], "intents": [], "model_metadata": []}
+def _empty(): return {"accounts": [], "sessions": [], "conversations": [], "shares": [], "intents": [], "model_metadata": []}
 def _load():
     try: return {**_empty(), **json.loads(_path().read_text(encoding="utf-8"))}
     except (OSError, json.JSONDecodeError): return _empty()
@@ -77,6 +77,32 @@ def clear_user_session(session_id, account_id=None):
         if not user or (account_id is not None and str(user["account_id"]) != str(account_id)): return False
         data["sessions"] = [item for item in data["sessions"] if item["session_id"] != session_id]
         data["conversations"] = [item for item in data["conversations"] if item["user_id"] != user["id"]]
+        _save(data); return True
+
+
+def create_share(token, account_id, session_id, title, messages):
+    with _LOCK:
+        data = _load()
+        row = {
+            "token": token, "account_id": account_id, "session_id": session_id,
+            "title": title, "messages": messages, "created_at": _now(),
+        }
+        data.setdefault("shares", []).append(row); _save(data); return _object(row)
+
+
+def get_share(token): return _object(_row(_load().get("shares", []), "token", token))
+
+
+def list_shares(account_id):
+    rows = [item for item in _load().get("shares", []) if str(item.get("account_id")) == str(account_id)]
+    return [dict(row) for row in sorted(rows, key=lambda item: item.get("created_at", ""), reverse=True)]
+
+
+def delete_share(token, account_id=None):
+    with _LOCK:
+        data = _load(); row = _row(data.get("shares", []), "token", token)
+        if not row or (account_id is not None and str(row.get("account_id")) != str(account_id)): return False
+        data["shares"] = [item for item in data.get("shares", []) if str(item.get("token")) != str(token)]
         _save(data); return True
 
 

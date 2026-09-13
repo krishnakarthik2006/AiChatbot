@@ -9,6 +9,7 @@ import {
   Cpu,
   Database,
   Download,
+  ExternalLink,
   FileDown,
   Lock,
   LogOut,
@@ -23,10 +24,12 @@ import {
   Search,
   Send,
   Settings,
+  Share2,
   ShieldCheck,
   Square,
   Sun,
   Moon,
+  Trash2,
   Undo2,
   Upload,
   User,
@@ -41,6 +44,12 @@ import DocumentManager from './DocumentManager.jsx';
 import AdminPanel from './AdminPanel.jsx';
 import AdvancedPanel from './AdvancedPanel.jsx';
 import NotificationCenter from './NotificationCenter.jsx';
+import SharedChatView from './SharedChatView.jsx';
+
+const SHARE_TOKEN_FROM_PATH = (() => {
+  const match = window.location.pathname.match(/^\/share\/([A-Za-z0-9_-]+)\/?$/);
+  return match ? match[1] : null;
+})();
 
 const modeOptions = [
   { value: 'balanced', label: 'Balanced' },
@@ -143,6 +152,11 @@ function App() {
   const [pastedImage, setPastedImage] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState(null);
+  const [shareLink, setShareLink] = useState('');
+  const [shareCopyActive, setShareCopyActive] = useState(false);
+  const [shareError, setShareError] = useState('');
   const [transcriptSearchOpen, setTranscriptSearchOpen] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState('');
   const [transcriptCursor, setTranscriptCursor] = useState(0);
@@ -380,6 +394,44 @@ function App() {
     const link = Object.assign(document.createElement('a'), { href: url, download: 'ai_chatbot-conversation.md' });
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const openShare = async () => {
+    setShareOpen(true);
+    setShareData(null);
+    setShareLink('');
+    setShareCopyActive(false);
+    setShareError('');
+    setStatusMessage('Creating share link...');
+    try {
+      const data = await apiRequest('/api/shares', { method: 'POST', body: JSON.stringify({}) });
+      const share = data.share || {};
+      setShareData(share);
+      setShareLink(new URL(share.url || '/', window.location.origin).href);
+      setStatusMessage('Share link created');
+    } catch (error) {
+      setShareError(error.message || 'Could not create a share link.');
+      setStatusMessage('Could not create share link');
+    }
+  };
+
+  const copyShareLink = async () => {
+    const ok = await copyText(shareLink);
+    setShareCopyActive(ok);
+    if (ok) window.setTimeout(() => setShareCopyActive(false), 1800);
+  };
+
+  const revokeShare = async () => {
+    if (!shareData?.token) return;
+    try {
+      await apiRequest(`/api/shares/${shareData.token}`, { method: 'DELETE' });
+      setStatusMessage('Share link removed');
+      setShareData(null);
+      setShareLink('');
+      setShareError('');
+    } catch (error) {
+      setShareError(error.message || 'Could not revoke the share link.');
+    }
   };
 
   const resetConversation = async () => {
@@ -987,6 +1039,10 @@ function App() {
     return <div className="auth-shell"><div className="auth-loading">Loading...</div></div>;
   }
 
+  if (SHARE_TOKEN_FROM_PATH) {
+    return <SharedChatView token={SHARE_TOKEN_FROM_PATH} />;
+  }
+
   if (!isAuthenticated) {
     return <AuthPage />;
   }
@@ -1307,6 +1363,7 @@ function App() {
           <NotificationCenter />
           <button className="icon-button" type="button" title="Undo last change (Ctrl+Z)" aria-label="Undo last change" onClick={undoLast} disabled={!chatSnapshots.length}><Undo2 size={16} /></button>
           <button className="icon-button" type="button" title="Search conversation (Ctrl+K for all commands)" aria-label="Search this conversation" onClick={() => setTranscriptSearchOpen((open) => !open)}><Search size={16} /></button>
+          <button className="icon-button" type="button" title="Share chat" aria-label="Share chat" onClick={openShare} disabled={!messages.some((message) => message.text)}><Share2 size={16} /></button>
           <div className={`status-pill${assistantReady ? ' online' : ' offline'}`}>
             <span className="status-dot" />
             <span>{statusLabel}</span>
@@ -1558,6 +1615,35 @@ function App() {
           </div>
         </footer>
       </main>
+
+      {shareOpen ? (
+        <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Share chat" onClick={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}>
+          <div className="share-card">
+            <div className="share-card-header">
+              <strong>Share this chat</strong>
+              <button type="button" className="icon-button" onClick={() => setShareOpen(false)} aria-label="Close" title="Close"><X size={16} /></button>
+            </div>
+            {shareData ? (
+              <>
+                <p className="share-note">Anyone with this link can view a read-only copy of the conversation. The copy is fixed when you create it and stays valid until you revoke it.</p>
+                <div className="share-link-row">
+                  <input className="text-field share-link-input" readOnly value={shareLink} onFocus={(event) => event.target.select()} aria-label="Share link" />
+                  <button className={`icon-button${shareCopyActive ? ' active' : ''}`} type="button" onClick={copyShareLink} title={shareCopyActive ? 'Copied' : 'Copy link'} aria-label="Copy share link">{shareCopyActive ? <Check size={16} /> : <Copy size={16} />}</button>
+                  <a className="secondary-button share-open" href={shareLink} target="_blank" rel="noreferrer" title="Open the shared view"><ExternalLink size={15} /> Open</a>
+                </div>
+                <div className="share-footer">
+                  <small>{shareData.created_at ? `Created ${new Date(shareData.created_at).toLocaleString()}` : ''}</small>
+                  <button className="secondary-button danger" type="button" onClick={revokeShare} title="Remove the share link" aria-label="Revoke share link"><Trash2 size={14} /> Revoke link</button>
+                </div>
+              </>
+            ) : shareError ? (
+              <p className="share-error" role="alert">{shareError}</p>
+            ) : (
+              <p className="share-loading">Creating share link…</p>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {paletteOpen ? (
         <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Commands" onClick={(event) => { if (event.target === event.currentTarget) setPaletteOpen(false); }}>
